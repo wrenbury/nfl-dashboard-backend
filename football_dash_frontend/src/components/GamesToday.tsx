@@ -1,110 +1,101 @@
 import React, { useEffect, useState } from "react";
-import { GamesTodayResponse, TodayGame } from "../types/api";
-import { fetchGamesToday } from "../api";
+import type { TodayGame, GamesTodayResponse } from "../types/api";
 
-interface GamesTodayProps {
+const API_BASE =
+  window.location.protocol.replace(":", "") === "https"
+    ? `https://${window.location.hostname}:8000`
+    : `http://${window.location.hostname}:8000`;
+
+export const GamesToday: React.FC<{
   onSelectGame: (gameId: string) => void;
-  selectedGameId: string | null;
-}
-
-type FetchState<T> =
-  | { status: "idle" }
-  | { status: "loading" }
-  | { status: "error"; error: string }
-  | { status: "success"; data: T };
-
-export const GamesToday: React.FC<GamesTodayProps> = ({
-  onSelectGame,
-  selectedGameId
-}) => {
-  const [state, setState] = useState<FetchState<GamesTodayResponse>>({
-    status: "idle"
-  });
+}> = ({ onSelectGame }) => {
+  const [games, setGames] = useState<TodayGame[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
-    const load = async () => {
-      setState({ status: "loading" });
+    async function loadGames() {
+      setLoading(true);
+      setError(null);
+
       try {
-        const json = await fetchGamesToday();
-        if (!cancelled) {
-          setState({ status: "success", data: json });
+        const res = await fetch(`${API_BASE}/games/today`);
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(
+            `HTTP ${res.status} from /games/today: ${text.slice(0, 200)}`
+          );
         }
-      } catch (err) {
+
+        const data: GamesTodayResponse = await res.json();
         if (!cancelled) {
-          setState({
-            status: "error",
-            error: err instanceof Error ? err.message : "Unknown error"
-          });
+          setGames(data.games ?? []);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          setError(err?.message || String(err));
+          setGames([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
         }
       }
-    };
+    }
 
-    load();
-    return () => { cancelled = true; };
+    loadGames();
+
+    const id = setInterval(loadGames, 30_000); // refresh every 30s
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
   }, []);
 
-  const renderBody = () => {
-    if (state.status === "loading" || state.status === "idle") {
-      return (
-        <div className="flex items-center justify-center py-16 text-slate-400">
-          Loading today&apos;s games...
-        </div>
-      );
-    }
+  if (loading) {
+    return <div>Loading today&apos;s games…</div>;
+  }
 
-    if (state.status === "error") {
-      return (
-        <div className="flex flex-col items-center justify-center py-16 gap-3">
-          <p className="text-red-400 text-sm">Failed to load games: {state.error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="rounded-full bg-slate-800 px-4 py-1.5 text-sm text-slate-100 hover:bg-slate-700"
-          >
-            Retry
-          </button>
-        </div>
-      );
-    }
+  if (error) {
+    return <div style={{ color: "red" }}>Failed to load games: {error}</div>;
+  }
 
-    const games = state.data.games;
-
-    if (!games.length) {
-      return (
-        <div className="flex items-center justify-center py-16 text-slate-400">
-          No NFL games found for today.
-        </div>
-      );
-    }
-
-    return (
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {games.map((game) => (
-          <GameCard
-            key={game.game_id}
-            game={game}
-            isSelected={selectedGameId === game.game_id}
-            onClick={() => onSelectGame(game.game_id)}
-          />
-        ))}
-      </div>
-    );
-  };
+  if (!games.length) {
+    return <div>No games found for today.</div>;
+  }
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-6">
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <div>
-          <h2 className="text-base font-semibold tracking-tight">Today&apos;s Games</h2>
-          <p className="text-xs text-slate-400">
-            Tap a game to open the live dashboard.
-          </p>
-        </div>
-      </div>
-      {renderBody()}
-    </section>
+    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      {games.map((g) => (
+        <button
+          key={g.game_id}
+          onClick={() => onSelectGame(g.game_id)}
+          className="border rounded-xl p-4 text-left hover:shadow-md transition"
+        >
+          <div className="text-xs uppercase text-gray-500">
+            {g.league} • Week {g.week ?? "?"}
+          </div>
+          <div className="mt-1 text-sm text-gray-600">
+            {g.status.toUpperCase()}{" "}
+            {g.quarter ? `Q${g.quarter}` : ""}{" "}
+            {g.clock ? `• ${g.clock}` : ""}
+          </div>
+          <div className="mt-2 font-semibold">
+            {g.away_team.full_name} @ {g.home_team.full_name}
+          </div>
+          <div className="mt-1 text-lg font-bold">
+            {g.away_team.score} - {g.home_team.score}
+          </div>
+          {g.red_zone && (
+            <div className="mt-1 inline-flex items-center px-2 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+              Red Zone
+            </div>
+          )}
+        </button>
+      ))}
+    </div>
   );
 };
-
-// ---- GameCard and TeamRow remain unchanged ----
