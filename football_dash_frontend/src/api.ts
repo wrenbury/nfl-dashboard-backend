@@ -1,45 +1,39 @@
-// Automatically detect backend URL
-// Priority:
-// 1. footballpi.local (your Pi hostname)
-// 2. Current host but port 8000
-// 3. Localhost fallback for dev
+// football_dash_frontend/src/api.ts
 
-function detectBackendBaseUrl(): string {
-  // If Pi hostname resolves, use it
-  const piHost = "http://footballpi.local:8000";
+import {
+  GamesTodayResponse,
+  GameLiveResponse,
+  CfbScoreboardResponse,
+} from "./types/api";
 
-  // Try same hostname but port 8000
-  const sameHost = `http://${window.location.hostname}:8000`;
-
-  // Dev fallback
-  const localhost = "http://localhost:8000";
-
-  // Browser cannot actually test fetch sync,
-  // so we use a simple heuristic:
-  if (window.location.hostname.endsWith(".local")) {
-    return sameHost;
+async function handleJson<T>(res: Response): Promise<T> {
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(
+      `API error ${res.status}: ${text || res.statusText || "Unknown error"}`
+    );
   }
-
-  return piHost || sameHost || localhost;
+  return (await res.json()) as T;
 }
 
-const BASE_URL = detectBackendBaseUrl();
-
-// --- API Helper functions ---
-
-export async function fetchGamesToday() {
-  const res = await fetch(`${BASE_URL}/games/today`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch games today: ${res.status}`);
-  }
-  return res.json();
+export async function fetchGamesToday(): Promise<GamesTodayResponse> {
+  const res = await fetch("/games/today");
+  return handleJson<GamesTodayResponse>(res);
 }
 
-export async function fetchGameLive(gameId: string) {
-  const encoded = encodeURIComponent(gameId);
-  const res = await fetch(`${BASE_URL}/games/${encoded}/live`);
-  if (!res.ok) {
-    throw new Error(`Failed to fetch game live: ${res.status}`);
-  }
-  return res.json();
+export async function fetchGameLive(gameId: string): Promise<GameLiveResponse> {
+  const res = await fetch(`/games/${encodeURIComponent(gameId)}/live`);
+  return handleJson<GameLiveResponse>(res);
+}
+
+export async function fetchCfbScoreboard(
+  year: number,
+  week: number
+): Promise<CfbScoreboardResponse> {
+  const params = new URLSearchParams({
+    year: String(year),
+    week: String(week),
+  });
+  const res = await fetch(`/cfb/scoreboard?${params.toString()}`);
+  return handleJson<CfbScoreboardResponse>(res);
 }
