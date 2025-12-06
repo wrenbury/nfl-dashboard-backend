@@ -920,7 +920,7 @@ def get_games_today():
       { "games": [ { game_id, league, season, week, status, quarter, clock,
                      kickoff_time_utc, home_team, away_team, red_zone } ] }
     """
-    url = ESPN_NFL_SCOREBOARD_URL
+    url = f"{ESPN_NFL_SCOREBOARD_URL}?dates=20240908"
 
     try:
         response = httpx.get(url, timeout=5.0)
