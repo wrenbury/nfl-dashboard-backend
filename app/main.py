@@ -1011,6 +1011,16 @@ def get_games_today():
             event_week_raw = event.get("week") or {}
             event_week = event_week_raw if isinstance(event_week_raw, dict) else {}
 
+            # Normalize kickoff_time_utc so it always has seconds, e.g. 2025-12-07T18:00:00Z
+            raw_date = comp.get("date")
+            kickoff_time_utc: Optional[str] = None
+            if isinstance(raw_date, str):
+                # If it's like 2025-12-07T18:00Z (no seconds), turn it into 2025-12-07T18:00:00Z
+                if raw_date.endswith("Z") and raw_date.count(":") == 1:
+                    kickoff_time_utc = raw_date.replace("Z", ":00Z")
+                else:
+                    kickoff_time_utc = raw_date
+
             game_obj: Dict[str, Any] = {
                 "game_id": event_id,
                 "league": "NFL",
@@ -1019,7 +1029,7 @@ def get_games_today():
                 "status": normalized["status"],
                 "quarter": normalized["period"],
                 "clock": normalized["clock"],
-                "kickoff_time_utc": comp.get("date"),
+                "kickoff_time_utc": kickoff_time_utc,
                 "home_team": home_header.dict(),
                 "away_team": away_header.dict(),
                 "red_zone": is_red,
