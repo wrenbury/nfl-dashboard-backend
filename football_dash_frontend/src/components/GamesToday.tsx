@@ -26,7 +26,7 @@ export const GamesToday: React.FC<GamesTodayProps> = ({
     const load = async () => {
       setState({ status: "loading" });
       try {
-        const res = await fetch("/games/today");
+        import { fetchGamesToday } from "../api";
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
