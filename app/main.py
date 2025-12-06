@@ -956,7 +956,7 @@ def get_games_today():
             },
         )
 
-    try:
+        try:
         events = payload.get("events") or []
         games: List[Dict[str, Any]] = []
 
@@ -1010,6 +1010,18 @@ def get_games_today():
             event_week_raw = event.get("week") or {}
             event_week = event_week_raw if isinstance(event_week_raw, dict) else {}
 
+            # 🔴 Normalize kickoff_time_utc to full ISO with seconds (if possible)
+            raw_date = comp.get("date")
+            kickoff_iso: Optional[str] = None
+            if isinstance(raw_date, str):
+                try:
+                    dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
+                    dt = dt.replace(microsecond=0, tzinfo=timezone.utc)
+                    kickoff_iso = dt.isoformat().replace("+00:00", "Z")
+                except Exception:
+                    # If parsing fails, just fall back to the raw string
+                    kickoff_iso = raw_date
+
             game_obj: Dict[str, Any] = {
                 "game_id": event_id,
                 "league": "NFL",
@@ -1018,7 +1030,7 @@ def get_games_today():
                 "status": normalized["status"],
                 "quarter": normalized["period"],
                 "clock": normalized["clock"],
-                "kickoff_time_utc": comp.get("date"),
+                "kickoff_time_utc": kickoff_iso,
                 "home_team": home_header.dict(),
                 "away_team": away_header.dict(),
                 "red_zone": is_red,
