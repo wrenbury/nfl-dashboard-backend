@@ -1,84 +1,105 @@
+// football_dash_frontend/src/App.tsx
+
 import React, { useState } from "react";
 import { GamesToday } from "./components/GamesToday";
 import { GameDashboard } from "./components/GameDashboard";
+import { CfbScoreboard } from "./components/CfbScoreboard";
+import { League } from "./types/api";
 
-type View = "today" | "game";
+type ScoreboardMode = "NFL" | "CFB";
 
-export const App: React.FC = () => {
-  const [view, setView] = useState<View>("today");
+const App: React.FC = () => {
+  const [mode, setMode] = useState<ScoreboardMode>("NFL");
   const [selectedGameId, setSelectedGameId] = useState<string | null>(null);
+  const [selectedLeague, setSelectedLeague] = useState<League>("NFL");
 
-  const handleSelectGame = (gameId: string) => {
+  const handleSelectNflGame = (gameId: string) => {
     setSelectedGameId(gameId);
-    setView("game");
+    setSelectedLeague("NFL");
   };
 
-  const handleBackToToday = () => {
-    setView("today");
+  const handleSelectCfbGame = (gameId: string) => {
+    setSelectedGameId(gameId);
+    setSelectedLeague("CFB");
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100">
-      <header className="border-b border-slate-800 bg-slate-900/60 backdrop-blur">
-        <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 text-xl font-bold">
-              🏈
-            </span>
-            <div>
-              <h1 className="text-lg font-semibold tracking-tight">
-                Football Live Dashboard
-              </h1>
-              <p className="text-xs text-slate-400">
-                NFL realtime scoreboard & game view
-              </p>
-            </div>
+    <div className="min-h-screen bg-slate-950 text-slate-50">
+      <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col gap-4 h-screen">
+        <header className="flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">
+              Football Dashboard
+            </h1>
+            <p className="text-xs text-slate-400">
+              NFL live games + College Football scoreboard
+            </p>
           </div>
 
-          <nav className="flex items-center gap-2 text-sm">
+          <div className="inline-flex items-center rounded-full bg-slate-900/70 p-1 text-xs border border-slate-800">
             <button
-              onClick={() => setView("today")}
-              className={`rounded-full px-3 py-1 transition ${
-                view === "today"
-                  ? "bg-slate-700 text-white"
-                  : "text-slate-300 hover:bg-slate-800"
+              type="button"
+              onClick={() => {
+                setMode("NFL");
+                setSelectedGameId(null);
+                setSelectedLeague("NFL");
+              }}
+              className={`px-3 py-1 rounded-full transition ${
+                mode === "NFL"
+                  ? "bg-slate-100 text-slate-900 shadow-sm"
+                  : "text-slate-300"
               }`}
             >
-              Today&apos;s Games
+              NFL
             </button>
             <button
-              onClick={() => selectedGameId && setView("game")}
-              disabled={!selectedGameId}
-              className={`rounded-full px-3 py-1 transition ${
-                view === "game"
-                  ? "bg-slate-700 text-white"
-                  : "text-slate-300 hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed"
+              type="button"
+              onClick={() => {
+                setMode("CFB");
+                setSelectedGameId(null);
+                setSelectedLeague("CFB");
+              }}
+              className={`px-3 py-1 rounded-full transition ${
+                mode === "CFB"
+                  ? "bg-slate-100 text-slate-900 shadow-sm"
+                  : "text-slate-300"
               }`}
             >
-              Game Dashboard
+              CFB
             </button>
-          </nav>
-        </div>
-      </header>
-
-      <main className="flex-1">
-        {view === "today" && (
-          <GamesToday onSelectGame={handleSelectGame} selectedGameId={selectedGameId} />
-        )}
-
-        {view === "game" && selectedGameId && (
-          <GameDashboard
-            gameId={selectedGameId}
-            onBack={handleBackToToday}
-          />
-        )}
-
-        {view === "game" && !selectedGameId && (
-          <div className="mx-auto max-w-5xl px-4 py-8 text-center text-slate-400">
-            <p>Select a game from Today&apos;s Games to open the dashboard.</p>
           </div>
-        )}
-      </main>
+        </header>
+
+        <main className="flex-1 grid grid-cols-1 lg:grid-cols-[minmax(0,2.2fr)_minmax(0,3fr)] gap-4 min-h-0">
+          <section className="min-h-0">
+            {mode === "NFL" ? (
+              <GamesToday onSelectGame={handleSelectNflGame} />
+            ) : (
+              <CfbScoreboard onSelectGame={handleSelectCfbGame} />
+            )}
+          </section>
+
+          <section className="hidden lg:block min-h-0">
+            {selectedGameId ? (
+              <GameDashboard
+                gameId={selectedGameId}
+                league={selectedLeague}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-xs text-slate-500">
+                Select a game from the left to view details.
+              </div>
+            )}
+          </section>
+        </main>
+
+        <footer className="text-[10px] text-slate-500 flex items-center justify-between">
+          <span>Backend: FastAPI • Frontend: React + Vite + Tailwind</span>
+          <span>NFL data: ESPN • CFB data: CollegeFootballData.com</span>
+        </footer>
+      </div>
     </div>
   );
 };
+
+export default App;
