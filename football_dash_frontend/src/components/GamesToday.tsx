@@ -1,14 +1,20 @@
-// football_dash_frontend/src/components/GamesToday.tsx
-
 import React, { useEffect, useState } from "react";
 import { fetchGamesToday } from "../api";
-import { GamesTodayResponse, TodayGame, StatusState } from "../types/api";
+import { TodayGame } from "../types";
 
 interface GamesTodayProps {
   onSelectGame?: (gameId: string) => void;
 }
 
-const statusPillClasses: Record<StatusState, string> = {
+type LoadState =
+  | { status: "loading" }
+  | { status: "success"; data: { games: TodayGame[] } }
+  | { status: "error"; message: string };
+
+const statusPillClasses: Record<
+  "pre" | "in" | "post" | "halftime" | "final" | "delayed",
+  string
+> = {
   pre: "bg-slate-800 text-slate-100",
   in: "bg-emerald-500/90 text-white",
   halftime: "bg-amber-500/90 text-black",
@@ -53,66 +59,83 @@ function formatNflStatus(game: TodayGame): string {
 }
 
 export const GamesToday: React.FC<GamesTodayProps> = ({ onSelectGame }) => {
-  const [data, setData] = useState<GamesTodayResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [state, setState] = useState<LoadState>({ status: "loading" });
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
+    let isMounted = true;
+
+    async function load() {
+      setState({ status: "loading" });
+
       try {
-        setLoading(true);
-        setError(null);
-        const res = await fetchGamesToday();
-        if (!cancelled) {
-          setData(res);
-        }
+        const data = await fetchGamesToday();
+        if (!isMounted) return;
+        setState({ status: "success", data });
       } catch (err: any) {
-        if (!cancelled) {
-          setError(err?.message ?? "Failed to load games");
-          setData(null);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!isMounted) return;
+        setState({
+          status: "error",
+          message: err?.message || "Failed to load games",
+        });
       }
-    })();
+    }
+
+    load();
     return () => {
-      cancelled = true;
+      isMounted = false;
     };
   }, []);
+
+  if (state.status === "loading") {
+    return (
+      <div className="flex flex-col h-full gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-50">
+            NFL Games Today
+          </h2>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
+          Loading NFL games…
+        </div>
+      </div>
+    );
+  }
+
+  if (state.status === "error") {
+    return (
+      <div className="flex flex-col h-full gap-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-50">
+            NFL Games Today
+          </h2>
+        </div>
+        <div className="flex-1 flex items-center justify-center text-red-400 text-xs px-4 text-center">
+          {state.message}
+        </div>
+      </div>
+    );
+  }
+
+  const games = state.data.games;
 
   return (
     <div className="flex flex-col h-full gap-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-slate-50">NFL Games Today</h2>
         <span className="text-xs text-slate-400">
-          {data?.games?.length ?? 0} games
+          {games?.length ?? 0} games
         </span>
       </div>
 
-      {loading && (
-        <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
-          Loading NFL games…
-        </div>
-      )}
-
-      {error && !loading && (
-        <div className="flex-1 flex items-center justify-center text-red-400 text-xs">
-          {error}
-        </div>
-      )}
-
-      {!loading && !error && data && data.games.length === 0 && (
+      {(!games || games.length === 0) && (
         <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
           No NFL games found for today.
         </div>
       )}
 
-      {!loading && !error && data && data.games.length > 0 && (
+      {games && games.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 overflow-auto pb-2">
-          {data.games.map((g) => (
+          {games.map((g) => (
             <button
               key={g.game_id}
               type="button"
