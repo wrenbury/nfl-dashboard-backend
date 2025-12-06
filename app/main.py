@@ -1,4 +1,3 @@
-# app/main.py
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -59,6 +58,9 @@ def _normalize_game_status(status: Dict[str, Any]) -> Dict[str, Any]:
         }
       }
     """
+    if not isinstance(status, dict):
+        status = {}
+
     state = (status.get("state") or "").lower()
     completed = bool(status.get("completed"))
     name = (status.get("name") or "").lower()
@@ -155,14 +157,28 @@ def _build_summary_like_payload_from_core(game_id: str) -> Dict[str, Any]:
     else:
         raise RuntimeError(f"Unsupported competitions element type: {type(comp_meta)}")
 
-    # Season / week
-    season_core = event.get("season") or comp.get("season") or {}
-    week_core = event.get("week") or comp.get("week") or {}
+    # Season / week (may be dicts or just integer IDs)
+    season_core_raw = event.get("season") or comp.get("season") or {}
+    if not isinstance(season_core_raw, dict):
+        season_core = {}
+    else:
+        season_core = season_core_raw
+
+    week_core_raw = event.get("week") or comp.get("week") or {}
+    if not isinstance(week_core_raw, dict):
+        week_core = {}
+    else:
+        week_core = week_core_raw
+
     season = {"year": season_core.get("year")}
     week = {"number": week_core.get("number")}
 
     # Status
-    status = (comp.get("status") or {}).get("type") or {}
+    status_container = comp.get("status")
+    if isinstance(status_container, dict):
+        status = status_container.get("type") or {}
+    else:
+        status = {}
 
     # Competitors -> synthesize Site-style competitors list
     competitors_core: List[Dict[str, Any]] = comp.get("competitors") or []
@@ -383,7 +399,11 @@ def _map_header(payload: Dict[str, Any], game_id: str) -> Header:
     season = header.get("season") or {}
     week = header.get("week") or {}
 
-    status_type = ((comp.get("status") or {}).get("type")) or {}
+    raw_status = comp.get("status")
+    if isinstance(raw_status, dict):
+        status_type = raw_status.get("type") or {}
+    else:
+        status_type = {}
     normalized = _normalize_game_status(status_type)
     state = normalized["status"]
 
@@ -652,6 +672,9 @@ def _parse_team_statistics(stats_list: List[Dict[str, Any]]) -> TeamStats:
     team_stats = TeamStats()
 
     for s in stats_list or []:
+        if not isinstance(s, dict):
+            continue
+
         name = s.get("name")
         value = s.get("value", s.get("displayValue"))
 
@@ -944,8 +967,10 @@ def get_games_today():
         games: List[Dict[str, Any]] = []
 
         # Some scoreboards also expose top-level season/week; use if present.
-        season_info = payload.get("season") or {}
-        week_info = payload.get("week") or {}
+        season_info_raw = payload.get("season") or {}
+        season_info = season_info_raw if isinstance(season_info_raw, dict) else {}
+        week_info_raw = payload.get("week") or {}
+        week_info = week_info_raw if isinstance(week_info_raw, dict) else {}
 
         for event in events:
             event_id = str(event.get("id") or "")
@@ -954,7 +979,11 @@ def get_games_today():
                 continue
             comp = competitions[0]
 
-            status_type = ((comp.get("status") or {}).get("type")) or {}
+            raw_status = comp.get("status")
+            if isinstance(raw_status, dict):
+                status_type = raw_status.get("type") or {}
+            else:
+                status_type = {}
             normalized = _normalize_game_status(status_type)
 
             competitors = comp.get("competitors") or []
@@ -981,11 +1010,17 @@ def get_games_today():
             if isinstance(yl, int):
                 is_red = is_red or yl >= 80
 
+            # Event-level season/week may also be non-dicts; guard them.
+            event_season_raw = event.get("season") or {}
+            event_season = event_season_raw if isinstance(event_season_raw, dict) else {}
+            event_week_raw = event.get("week") or {}
+            event_week = event_week_raw if isinstance(event_week_raw, dict) else {}
+
             game_obj: Dict[str, Any] = {
                 "game_id": event_id,
                 "league": "NFL",
-                "season": season_info.get("year") or (event.get("season") or {}).get("year"),
-                "week": week_info.get("number") or (event.get("week") or {}).get("number"),
+                "season": season_info.get("year") or event_season.get("year"),
+                "week": week_info.get("number") or event_week.get("number"),
                 "status": normalized["status"],
                 "quarter": normalized["period"],
                 "clock": normalized["clock"],
