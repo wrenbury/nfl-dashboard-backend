@@ -23,7 +23,7 @@ export const GameDashboard: React.FC<GameDashboardProps> = ({ gameId, onBack }) 
     const load = async () => {
       setState({ status: "loading" });
       try {
-        const res = await fetch(`/games/${encodeURIComponent(gameId)}/live`);
+        import { fetchGameLive } from "../api";
         if (!res.ok) {
           const msg = `HTTP ${res.status}`;
           throw new Error(msg);
