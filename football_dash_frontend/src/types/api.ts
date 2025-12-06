@@ -1,3 +1,9 @@
+// football_dash_frontend/src/types/api.ts
+
+// ----------------------
+// Shared / NFL types
+// ----------------------
+
 export type League = "NFL" | "CFB";
 
 export type StatusState =
@@ -8,253 +14,253 @@ export type StatusState =
   | "final"
   | "delayed";
 
-export type PossessionSide = "home" | "away";
+export type Quarter = 1 | 2 | 3 | 4 | 5 | null;
 
-export type TeamSide = "home" | "away";
-
-export type ScoringPlayType =
-  | "TD"
-  | "FG"
-  | "Safety"
-  | "XP"
-  | "2PT"
-  | "Other";
-
-// Team summary / header
 export interface TeamSummary {
   id: string;
   name: string;
-  full_name: string;
-  abbreviation: string;
-  record?: string | null;
-  score: number;
+  shortName: string;
+  abbreviation: string | null;
+  logoUrl: string | null;
+  record: string | null;
+  score: number | null;
+  conference?: string | null;
 }
 
-export interface TeamHeader extends TeamSummary {}
-
-// /games/today
 export interface TodayGame {
   game_id: string;
-  league: League;
-  season: number | null;
-  week: number | null;
+  league: "NFL";
+  season: number;
+  week: number;
   status: StatusState;
-  quarter: number | null;
+  quarter: Quarter;
   clock: string | null;
   kickoff_time_utc: string | null;
+  neutral_site: boolean;
+
   home_team: TeamSummary;
   away_team: TeamSummary;
-  red_zone: boolean;
+
+  venue_name?: string | null;
+  tv_network?: string | null;
 }
 
 export interface GamesTodayResponse {
   games: TodayGame[];
 }
 
-// /games/{id}/live
-export interface Header {
+// ----------------------
+// GameLiveResponse (NFL)
+// ----------------------
+
+export interface GameHeader {
   game_id: string;
-  league: League;
+  league: "NFL";
   season: number;
-  week?: number | null;
-  status: StatusState;
-  kickoff_time_utc?: string | null;
-  home_team: TeamHeader;
-  away_team: TeamHeader;
-  quarter?: number | null;
-  clock?: string | null;
-  possession?: PossessionSide | null;
-  down?: number | null;
-  distance?: number | null;
-  yard_line?: number | null;
+  week: number | null;
+  state: StatusState;
+  quarter: Quarter;
+  clock: string | null;
+  scheduled_utc: string | null;
+  venue_name: string | null;
+
+  home_team: TeamSummary;
+  away_team: TeamSummary;
+
+  possession: "home" | "away" | null;
+  down: number | null;
+  distance: number | null;
+  yard_line: number | null;
   red_zone: boolean;
-  home_timeouts?: number | null;
-  away_timeouts?: number | null;
-  last_play_short?: string | null;
-  last_updated_utc: string;
+  home_timeouts: number | null;
+  away_timeouts: number | null;
+  last_play_short: string | null;
 }
 
 export interface DriveSummary {
   id: string;
-  team: TeamSide;
-  result?: string | null;
-  plays?: number | null;
-  yards?: number | null;
-  time_of_possession?: string | null;
-}
-
-export interface CurrentDrive {
-  id: string;
-  team: TeamSide;
-  plays?: number | null;
-  yards?: number | null;
-  time_of_possession?: string | null;
-  red_zone?: boolean | null;
-  clock?: string | null;
-  quarter?: number | null;
-  down?: number | null;
-  distance?: number | null;
-  yard_line?: number | null;
-}
-
-export interface Drives {
-  current_drive_id?: string | null;
-  summary: DriveSummary[];
-  current?: CurrentDrive | null;
+  team: "home" | "away";
+  quarter: Quarter;
+  result: string | null;
+  plays: number | null;
+  yards: number | null;
+  time_of_possession: string | null;
 }
 
 export interface ScoringByQuarter {
-  quarter: number;
+  quarter: Quarter;
   home_points: number;
   away_points: number;
 }
 
+export type ScoringPlayType = "TD" | "FG" | "Safety" | "XP" | "2PT" | "Other";
+
 export interface ScoringPlay {
   id: string;
-  quarter: number;
-  clock: string;
-  team: TeamSide;
+  quarter: Quarter;
+  clock: string | null;
+  team: "home" | "away";
   type: ScoringPlayType;
   description: string;
-  yards?: number | null;
-  player_primary?: string | null;
+  yards: number | null;
+  player_primary: string | null;
 }
 
-export interface TouchdownScorer {
+export interface TdScorer {
   player: string;
-  team: TeamSide;
-  count: number;
+  team: "home" | "away" | null;
+  touchdowns: number;
 }
 
-export interface Scoring {
+export interface ScoringSummary {
   summary_by_quarter: ScoringByQuarter[];
   plays: ScoringPlay[];
-  touchdown_scorers: TouchdownScorer[];
+  td_scorers: TdScorer[];
 }
 
 export interface TeamStats {
-  total_yards?: number | null;
-  plays?: number | null;
-  yards_per_play?: number | null;
-  passing_yards?: number | null;
-  rushing_yards?: number | null;
-  turnovers?: number | null;
-  penalties?: number | null;
-  penalty_yards?: number | null;
-  third_down_made?: number | null;
-  third_down_attempts?: number | null;
-  red_zone_trips?: number | null;
-  red_zone_tds?: number | null;
-  time_of_possession?: string | null;
+  total_yards: number | null;
+  plays: number | null;
+  yards_per_play: number | null;
+  passing_yards: number | null;
+  rushing_yards: number | null;
+  turnovers: number | null;
+  penalties: number | null;
+  penalty_yards: number | null;
+  third_down_made: number | null;
+  third_down_attempts: number | null;
+  red_zone_trips: number | null;
+  red_zone_tds: number | null;
+  time_of_possession: string | null;
 }
 
-export interface TeamStatsWrapper {
+export interface TeamStatsPair {
   home: TeamStats;
   away: TeamStats;
 }
 
-export interface PassingStat {
-  player: string;
-  team: TeamSide;
-  completions: number;
-  attempts: number;
-  yards: number;
-  touchdowns: number;
-  interceptions: number;
+export interface PlayerPassingStatLine {
+  player_id: string | null;
+  name: string;
+  team: "home" | "away";
+  completions: number | null;
+  attempts: number | null;
+  yards: number | null;
+  touchdowns: number | null;
+  interceptions: number | null;
 }
 
-export interface RushingStat {
-  player: string;
-  team: TeamSide;
-  carries: number;
-  yards: number;
-  touchdowns: number;
+export interface PlayerRushingStatLine {
+  player_id: string | null;
+  name: string;
+  team: "home" | "away";
+  carries: number | null;
+  yards: number | null;
+  touchdowns: number | null;
 }
 
-export interface ReceivingStat {
-  player: string;
-  team: TeamSide;
-  receptions: number;
-  yards: number;
-  touchdowns: number;
+export interface PlayerReceivingStatLine {
+  player_id: string | null;
+  name: string;
+  team: "home" | "away";
+  receptions: number | null;
+  yards: number | null;
+  touchdowns: number | null;
 }
 
 export interface PlayerStats {
-  passing: PassingStat[];
-  rushing: RushingStat[];
-  receiving: ReceivingStat[];
+  passing: PlayerPassingStatLine[];
+  rushing: PlayerRushingStatLine[];
+  receiving: PlayerReceivingStatLine[];
 }
 
 export interface Boxscore {
-  team_stats: TeamStatsWrapper;
+  team_stats: TeamStatsPair;
   player_stats: PlayerStats;
 }
 
-export interface Venue {
-  name?: string | null;
-  city?: string | null;
-  state?: string | null;
-  indoor?: boolean | null;
+export interface WeatherMeta {
+  description: string | null;
+  temperature_f: number | null;
+  wind_mph: number | null;
 }
 
-export interface Broadcast {
-  network?: string | null;
-  stream?: string | null;
+export interface SiteMeta {
+  provider: string;
+  weather: WeatherMeta;
 }
 
-export interface Weather {
-  description?: string | null;
-  temperature_f?: number | null;
-  wind_mph?: number | null;
-  humidity_pct?: number | null;
-}
-
-export interface Meta {
-  venue: Venue;
-  broadcast: Broadcast;
-  weather: Weather;
+export interface WinProbabilityPoint {
+  quarter: Quarter;
+  clock: string | null;
+  home_win_pct: number;
 }
 
 export interface WinProbability {
-  home?: number | null;
-  away?: number | null;
-  last_updated_utc?: string | null;
+  current: number | null;
+  series: WinProbabilityPoint[];
 }
 
-export interface CurrentSituation {
-  description?: string | null;
-  short_description?: string | null;
-  team?: TeamSide | null;
-  down?: number | null;
-  distance?: number | null;
-  yard_line?: number | null;
-  clock?: string | null;
-  quarter?: number | null;
-  red_zone?: boolean | null;
+export interface TeamAnalytics {
+  success_rate: number | null;
+  explosive_play_rate: number | null;
+  epa_per_play: number | null;
 }
 
-export interface TeamSuccessRates {
-  success_rate?: number | null;
-  explosive_play_rate?: number | null;
-  epa_per_play?: number | null;
-}
-
-export interface TeamSuccessRatesWrapper {
-  home: TeamSuccessRates;
-  away: TeamSuccessRates;
-}
-
-export interface Analytics {
-  win_probability: WinProbability;
-  current_situation?: CurrentSituation | null;
-  team_success_rates: TeamSuccessRatesWrapper;
+export interface AnalyticsSummary {
+  win_probability: WinProbability | null;
+  team_success_rates: {
+    home: TeamAnalytics;
+    away: TeamAnalytics;
+  };
 }
 
 export interface GameLiveResponse {
-  header: Header;
-  drives: Drives;
-  scoring: Scoring;
+  header: GameHeader;
+  drives: DriveSummary[];
+  scoring: ScoringSummary;
   boxscore: Boxscore;
-  meta: Meta;
-  analytics: Analytics;
+  meta: SiteMeta;
+  analytics: AnalyticsSummary;
+}
+
+// ----------------------
+// CFB scoreboard types
+// ----------------------
+
+export interface CfbScoreboardGameTeam {
+  id: string;
+  name: string;
+  short_name: string;
+  abbreviation: string | null;
+  logo_url?: string | null;
+  rank?: number | null;
+  record?: string | null;
+  score: number | null;
+  conference?: string | null;
+}
+
+export interface CfbScoreboardGame {
+  game_id: string;
+  league: "CFB";
+  season: number;
+  week: number;
+
+  status: StatusState;
+  quarter: number | null;
+  clock: string | null;
+  kickoff_time_utc: string | null;
+  neutral_site: boolean;
+
+  home_team: CfbScoreboardGameTeam;
+  away_team: CfbScoreboardGameTeam;
+
+  venue_name?: string | null;
+  tv_network?: string | null;
+}
+
+export interface CfbScoreboardResponse {
+  season: number;
+  week: number;
+  games: CfbScoreboardGame[];
 }
