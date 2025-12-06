@@ -1,3 +1,4 @@
+# app/main.py
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +28,9 @@ from .schemas import (
 
 ESPN_NFL_SUMMARY_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary"
 ESPN_NFL_SCOREBOARD_URL = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard"
+ESPN_NFL_CORE_EVENT_BASE = (
+    "https://sports.core.api.espn.com/v2/sports/football/leagues/nfl/events"
+)
 
 app = FastAPI(title="Football Dashboard API")
 
@@ -80,6 +84,231 @@ def _normalize_game_status(status: Dict[str, Any]) -> Dict[str, Any]:
         "period": status.get("period"),
         "clock": status.get("displayClock"),
     }
+
+
+def _http_get_json(url: str, *, timeout: float = 5.0) -> Dict[str, Any]:
+    """
+    Helper used by the Core API fallback to fetch JSON or raise a RuntimeError.
+    """
+    try:
+        resp = httpx.get(url, timeout=timeout)
+    except httpx.RequestError as exc:
+        raise RuntimeError(f"HTTP request to {url} failed: {exc}") from exc
+
+    status_code = getattr(resp, "status_code", 500)
+    if status_code != 200:
+        raise RuntimeError(f"HTTP request to {url} returned {status_code}")
+
+    try:
+        return resp.json()
+    except Exception as exc:  # pragma: no cover - defensive
+        raise RuntimeError(f"Invalid JSON from {url}: {exc}") from exc
+
+
+def _get_ref_url(obj: Any) -> Optional[str]:
+    """
+    Extract a reference URL from an ESPN Core object.
+
+    Handles both Core-style {"$ref": "..."} and generic {"href": "..."} forms.
+    """
+    if not isinstance(obj, dict):
+        return None
+    for key in ("$ref", "href"):
+        val = obj.get(key)
+        if isinstance(val, str) and val:
+            return val
+    return None
+
+
+def _build_summary_like_payload_from_core(game_id: str) -> Dict[str, Any]:
+    """
+    Build a payload that looks like the Site summary JSON using the ESPN Core API.
+
+    This allows us to re-use the existing _map_header/_map_scoring/_map_boxscore/_map_meta
+    logic without needing a separate code path for Core.
+    """
+    event_url = f"{ESPN_NFL_CORE_EVENT_BASE}/{game_id}"
+    event = _http_get_json(event_url)
+
+    competitions_meta = event.get("competitions") or []
+    if not competitions_meta:
+        raise RuntimeError("Core event has no competitions")
+
+    comp_meta = competitions_meta[0]
+    comp_url = _get_ref_url(comp_meta)
+    comp = _http_get_json(comp_url) if comp_url else comp_meta
+
+    # Season / week
+    season_core = event.get("season") or comp.get("season") or {}
+    week_core = event.get("week") or comp.get("week") or {}
+    season = {"year": season_core.get("year")}
+    week = {"number": week_core.get("number")}
+
+    # Status
+    status = (comp.get("status") or {}).get("type") or {}
+
+    # Competitors -> synthesize Site-style competitors list
+    competitors_core: List[Dict[str, Any]] = comp.get("competitors") or []
+    competitors_synth: List[Dict[str, Any]] = []
+
+    for c in competitors_core:
+        side = (c.get("homeAway") or "").lower() or None
+
+        # Team: may be inline or a Core $ref to the team resource
+        team_meta = c.get("team") or {}
+        team_url = _get_ref_url(team_meta)
+        team_data: Dict[str, Any] = {}
+        if team_url:
+            try:
+                team_data = _http_get_json(team_url)
+            except RuntimeError:
+                team_data = {}
+        elif isinstance(team_meta, dict):
+            team_data = team_meta
+
+        team_obj = {
+            "id": str(team_data.get("id") or c.get("id") or ""),
+            "displayName": team_data.get("displayName")
+            or team_data.get("name")
+            or "",
+            "name": team_data.get("name") or "",
+            "abbreviation": team_data.get("abbreviation") or "",
+            "location": team_data.get("location"),
+        }
+
+        score_core = c.get("score") or {}
+        if isinstance(score_core, dict):
+            score_val = score_core.get("value") or score_core.get("displayValue") or 0
+        else:
+            score_val = score_core or 0
+
+        records_core = c.get("records") or []
+        linescores_core = c.get("linescores") or []
+
+        competitors_synth.append(
+            {
+                "homeAway": side,
+                "team": team_obj,
+                "score": str(score_val),
+                "records": records_core,
+                "linescores": linescores_core,
+            }
+        )
+
+    # Situation (downs, distance, yard line, possession, timeouts, last play)
+    situation: Dict[str, Any] = {}
+    situation_meta = comp.get("situation") or event.get("situation") or {}
+    situation_url = _get_ref_url(situation_meta)
+
+    situation_core: Dict[str, Any] = {}
+    if situation_url:
+        try:
+            situation_core = _http_get_json(situation_url)
+        except RuntimeError:
+            situation_core = {}
+    elif isinstance(situation_meta, dict):
+        situation_core = situation_meta
+
+    if situation_core:
+        situation["down"] = situation_core.get("down")
+        situation["distance"] = situation_core.get("distance")
+        situation["yardLine"] = situation_core.get("yardLine")
+        situation["isRedZone"] = situation_core.get("isRedZone")
+        situation["homeTimeouts"] = situation_core.get("homeTimeouts")
+        situation["awayTimeouts"] = situation_core.get("awayTimeouts")
+
+        # Possession can be a team id or an embedded object; handle both.
+        possession_val: Optional[str] = None
+        poss = situation_core.get("possession")
+        if isinstance(poss, dict):
+            possession_val = str(
+                poss.get("id")
+                or ((poss.get("team") or {}).get("id") if isinstance(poss.get("team"), dict) else "")
+            )
+        elif isinstance(poss, (str, int)):
+            possession_val = str(poss)
+        if possession_val:
+            situation["possession"] = possession_val
+
+        last_play = situation_core.get("lastPlay") or situation_core.get("play") or {}
+        if isinstance(last_play, dict):
+            text = last_play.get("text") or last_play.get("shortText")
+            if text:
+                situation["lastPlay"] = {"text": text}
+
+    # Venue
+    venue_meta = comp.get("venue") or event.get("venue") or {}
+    venue_url = _get_ref_url(venue_meta)
+    venue_core: Dict[str, Any] = {}
+    if venue_url:
+        try:
+            venue_core = _http_get_json(venue_url)
+        except RuntimeError:
+            venue_core = {}
+    elif isinstance(venue_meta, dict):
+        venue_core = venue_meta
+
+    address_core = venue_core.get("address") or {}
+    venue = {
+        "fullName": venue_core.get("fullName") or venue_core.get("name"),
+        "name": venue_core.get("name"),
+        "indoor": venue_core.get("indoor"),
+        "address": {
+            "city": address_core.get("city") or venue_core.get("city"),
+            "state": address_core.get("state") or venue_core.get("state"),
+        },
+    }
+
+    # Broadcasts
+    broadcasts_core: List[Dict[str, Any]] = comp.get("broadcasts") or []
+    broadcasts_synth: List[Dict[str, Any]] = []
+
+    for b_meta in broadcasts_core:
+        b_url = _get_ref_url(b_meta)
+        b_data: Dict[str, Any] = {}
+        if b_url:
+            try:
+                b_data = _http_get_json(b_url)
+            except RuntimeError:
+                b_data = {}
+        elif isinstance(b_meta, dict):
+            b_data = b_meta
+
+        network: Optional[str] = None
+        names = b_data.get("names")
+        if isinstance(names, list) and names:
+            network = names[0]
+        else:
+            network = b_data.get("shortName") or b_data.get("name")
+
+        if network:
+            broadcasts_synth.append({"names": [network], "network": network})
+        else:
+            broadcasts_synth.append(b_data)
+
+    # NOTE: For now we do not attempt to hydrate scoringPlays or boxscore from Core.
+    # The existing mappers will gracefully fall back to empty scoring / stats if
+    # those sections are missing. This still gives a useful header/meta view for
+    # archived games where the Site summary 404s.
+
+    payload: Dict[str, Any] = {
+        "header": {
+            "season": season,
+            "week": week,
+            "competitions": [
+                {
+                    "date": comp.get("date") or event.get("date"),
+                    "status": {"type": status},
+                    "competitors": competitors_synth,
+                    "situation": situation,
+                    "venue": venue,
+                    "broadcasts": broadcasts_synth,
+                }
+            ],
+        }
+    }
+
+    return payload
 
 
 def _map_team_header(raw_competitor: Dict[str, Any]) -> TeamHeader:
@@ -753,11 +982,17 @@ def get_games_today():
 
 @app.get("/games/{game_id}/live", response_model=GameLiveResponse)
 def get_game_live(game_id: str):
-    """Fetch live game data from ESPN and project it into our GameLiveResponse schema."""
-    url = f"{ESPN_NFL_SUMMARY_URL}?event={game_id}"
+    """
+    Fetch live game data from ESPN and project it into our GameLiveResponse schema.
+
+    Behaviour:
+    - First try the Site summary endpoint.
+    - If that returns 404, fall back to the ESPN Core API event resource.
+    """
+    summary_url = f"{ESPN_NFL_SUMMARY_URL}?event={game_id}"
 
     try:
-        response = httpx.get(url, timeout=5.0)
+        response = httpx.get(summary_url, timeout=5.0)
     except httpx.RequestError as exc:
         # Network or connection-related error
         return JSONResponse(
@@ -765,32 +1000,56 @@ def get_game_live(game_id: str):
             content={
                 "error": "Failed to reach ESPN API",
                 "game_id": game_id,
+                "endpoint": "summary",
                 "message": str(exc),
             },
         )
 
-    if getattr(response, "status_code", 500) != 200:
+    status_code = getattr(response, "status_code", 500)
+
+    # Primary path: Site summary (unchanged behaviour on 200)
+    if status_code == 200:
+        try:
+            payload = response.json()
+        except Exception as exc:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": "Invalid JSON from ESPN API",
+                    "game_id": game_id,
+                    "endpoint": "summary",
+                    "message": str(exc),
+                },
+            )
+
+    # Fallback path: Site summary 404 -> ESPN Core API event tree
+    elif status_code == 404:
+        try:
+            payload = _build_summary_like_payload_from_core(game_id)
+        except Exception as exc:
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "error": "ESPN Core API fallback failed",
+                    "game_id": game_id,
+                    "endpoint": "core-event",
+                    "message": str(exc),
+                },
+            )
+
+    # Any other non-200 remains a hard failure
+    else:
         return JSONResponse(
             status_code=502,
             content={
                 "error": "ESPN API returned non-200 status",
                 "game_id": game_id,
-                "status_code": getattr(response, "status_code", None),
+                "endpoint": "summary",
+                "status_code": status_code,
             },
         )
 
-    try:
-        payload = response.json()
-    except Exception as exc:
-        return JSONResponse(
-            status_code=502,
-            content={
-                "error": "Invalid JSON from ESPN API",
-                "game_id": game_id,
-                "message": str(exc),
-            },
-        )
-
+    # Common mapping path regardless of summary vs. Core fallback
     try:
         header_obj = _map_header(payload, game_id)
         drives = _map_drives(payload)
