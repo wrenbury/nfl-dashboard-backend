@@ -109,14 +109,26 @@ def _get_ref_url(obj: Any) -> Optional[str]:
     """
     Extract a reference URL from an ESPN Core object.
 
-    Handles both Core-style {"$ref": "..."} and generic {"href": "..."} forms.
+    Handles:
+      - Core-style {"$ref": "..."}
+      - Generic {"href": "..."}
+      - Plain integer IDs for competitions/venues/etc., which Core often uses.
     """
-    if not isinstance(obj, dict):
+    # Case 1: dict with "$ref" or "href"
+    if isinstance(obj, dict):
+        for key in ("$ref", "href"):
+            val = obj.get(key)
+            if isinstance(val, str) and val:
+                return val
         return None
-    for key in ("$ref", "href"):
-        val = obj.get(key)
-        if isinstance(val, str) and val:
-            return val
+
+    # Case 2: integer ID (very common in Core responses, e.g. competitions: [401671744])
+    if isinstance(obj, int):
+        # For competitions, Core URLs follow the pattern:
+        #   /events/{id}/competitions/{id}
+        return f"{ESPN_NFL_CORE_EVENT_BASE}/{obj}/competitions/{obj}"
+
+    # Unknown type
     return None
 
 
@@ -136,7 +148,12 @@ def _build_summary_like_payload_from_core(game_id: str) -> Dict[str, Any]:
 
     comp_meta = competitions_meta[0]
     comp_url = _get_ref_url(comp_meta)
-    comp = _http_get_json(comp_url) if comp_url else comp_meta
+    if comp_url:
+        comp = _http_get_json(comp_url)
+    elif isinstance(comp_meta, dict):
+        comp = comp_meta
+    else:
+        raise RuntimeError(f"Unsupported competitions element type: {type(comp_meta)}")
 
     # Season / week
     season_core = event.get("season") or comp.get("season") or {}
@@ -152,6 +169,9 @@ def _build_summary_like_payload_from_core(game_id: str) -> Dict[str, Any]:
     competitors_synth: List[Dict[str, Any]] = []
 
     for c in competitors_core:
+        if not isinstance(c, dict):
+            continue
+
         side = (c.get("homeAway") or "").lower() or None
 
         # Team: may be inline or a Core $ref to the team resource
@@ -223,7 +243,11 @@ def _build_summary_like_payload_from_core(game_id: str) -> Dict[str, Any]:
         if isinstance(poss, dict):
             possession_val = str(
                 poss.get("id")
-                or ((poss.get("team") or {}).get("id") if isinstance(poss.get("team"), dict) else "")
+                or (
+                    (poss.get("team") or {}).get("id")
+                    if isinstance(poss.get("team"), dict)
+                    else ""
+                )
             )
         elif isinstance(poss, (str, int)):
             possession_val = str(poss)
@@ -279,11 +303,15 @@ def _build_summary_like_payload_from_core(game_id: str) -> Dict[str, Any]:
         if isinstance(names, list) and names:
             network = names[0]
         else:
-            network = b_data.get("shortName") or b_data.get("name")
+            network = (
+                b_data.get("shortName")
+                or b_data.get("name")
+                or b_data.get("network")
+            )
 
         if network:
             broadcasts_synth.append({"names": [network], "network": network})
-        else:
+        elif b_data:
             broadcasts_synth.append(b_data)
 
     # NOTE: For now we do not attempt to hydrate scoringPlays or boxscore from Core.
