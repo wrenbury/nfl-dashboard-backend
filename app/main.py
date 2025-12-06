@@ -516,9 +516,22 @@ def _extract_linescore_points(comp: Dict[str, Any], side_key: str) -> Dict[int, 
             points_by_q: Dict[int, int] = {}
             for ls in linescores:
                 period = ls.get("period") or ls.get("number") or ls.get("sequence")
-                value = ls.get("value")
-                if isinstance(period, int) and isinstance(value, int):
-                    points_by_q[period] = value
+
+                raw_value = ls.get("value")
+                if not isinstance(raw_value, (int, float)):
+                    raw_value = ls.get("displayValue")
+
+                value_int: Optional[int] = None
+                if isinstance(raw_value, (int, float)):
+                    value_int = int(raw_value)
+                elif isinstance(raw_value, str):
+                    try:
+                        value_int = int(float(raw_value))
+                    except ValueError:
+                        value_int = None
+
+                if isinstance(period, int) and value_int is not None:
+                    points_by_q[period] = value_int
             return points_by_q
     return {}
 
