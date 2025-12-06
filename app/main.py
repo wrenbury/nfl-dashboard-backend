@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 import httpx
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 from .schemas import (
     Analytics,
@@ -33,6 +34,14 @@ ESPN_NFL_CORE_EVENT_BASE = (
 )
 
 app = FastAPI(title="Football Dashboard API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ok for LAN / dev
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
