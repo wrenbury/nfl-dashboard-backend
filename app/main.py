@@ -1,3 +1,4 @@
+# app/main.py
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -111,26 +112,14 @@ def _get_ref_url(obj: Any) -> Optional[str]:
     """
     Extract a reference URL from an ESPN Core object.
 
-    Handles:
-      - Core-style {"$ref": "..."}
-      - Generic {"href": "..."}
-      - Plain integer IDs for competitions/venues/etc., which Core often uses.
+    Handles Core-style {"$ref": "..."} and generic {"href": "..."} forms.
     """
-    # Case 1: dict with "$ref" or "href"
-    if isinstance(obj, dict):
-        for key in ("$ref", "href"):
-            val = obj.get(key)
-            if isinstance(val, str) and val:
-                return val
+    if not isinstance(obj, dict):
         return None
-
-    # Case 2: integer ID (very common in Core responses, e.g. competitions: [401671744])
-    if isinstance(obj, int):
-        # For competitions, Core URLs follow the pattern:
-        #   /events/{id}/competitions/{id}
-        return f"{ESPN_NFL_CORE_EVENT_BASE}/{obj}/competitions/{obj}"
-
-    # Unknown type
+    for key in ("$ref", "href"):
+        val = obj.get(key)
+        if isinstance(val, str) and val:
+            return val
     return None
 
 
@@ -398,6 +387,11 @@ def _map_header(payload: Dict[str, Any], game_id: str) -> Header:
 
     season = header.get("season") or {}
     week = header.get("week") or {}
+
+    if not isinstance(season, dict):
+        season = {}
+    if not isinstance(week, dict):
+        week = {}
 
     raw_status = comp.get("status")
     if isinstance(raw_status, dict):
