@@ -920,7 +920,7 @@ def get_games_today():
       { "games": [ { game_id, league, season, week, status, quarter, clock,
                      kickoff_time_utc, home_team, away_team, red_zone } ] }
     """
-    url = f"{ESPN_NFL_SCOREBOARD_URL}?dates=20240908"
+    url = ESPN_NFL_SCOREBOARD_URL
 
     try:
         response = httpx.get(url, timeout=5.0)
@@ -956,11 +956,12 @@ def get_games_today():
             },
         )
 
-        try:
+    try:
         events = payload.get("events") or []
         games: List[Dict[str, Any]] = []
 
-        # Some scoreboards also expose top-level season/week; use if present.
+        # Top-level season/week can be weird (e.g. "2025-12-05" when you force a date),
+        # so only treat them as dicts if they actually are dicts.
         season_info_raw = payload.get("season") or {}
         season_info = season_info_raw if isinstance(season_info_raw, dict) else {}
         week_info_raw = payload.get("week") or {}
@@ -1004,23 +1005,11 @@ def get_games_today():
             if isinstance(yl, int):
                 is_red = is_red or yl >= 80
 
-            # Event-level season/week may also be non-dicts; guard them.
+            # Event-level season/week can *also* be non-dicts, so guard them.
             event_season_raw = event.get("season") or {}
             event_season = event_season_raw if isinstance(event_season_raw, dict) else {}
             event_week_raw = event.get("week") or {}
             event_week = event_week_raw if isinstance(event_week_raw, dict) else {}
-
-            # 🔴 Normalize kickoff_time_utc to full ISO with seconds (if possible)
-            raw_date = comp.get("date")
-            kickoff_iso: Optional[str] = None
-            if isinstance(raw_date, str):
-                try:
-                    dt = datetime.fromisoformat(raw_date.replace("Z", "+00:00"))
-                    dt = dt.replace(microsecond=0, tzinfo=timezone.utc)
-                    kickoff_iso = dt.isoformat().replace("+00:00", "Z")
-                except Exception:
-                    # If parsing fails, just fall back to the raw string
-                    kickoff_iso = raw_date
 
             game_obj: Dict[str, Any] = {
                 "game_id": event_id,
@@ -1030,7 +1019,7 @@ def get_games_today():
                 "status": normalized["status"],
                 "quarter": normalized["period"],
                 "clock": normalized["clock"],
-                "kickoff_time_utc": kickoff_iso,
+                "kickoff_time_utc": comp.get("date"),
                 "home_team": home_header.dict(),
                 "away_team": away_header.dict(),
                 "red_zone": is_red,
