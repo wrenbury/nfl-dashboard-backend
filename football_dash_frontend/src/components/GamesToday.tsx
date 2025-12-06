@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { fetchGamesToday } from "../api";
-import { TodayGame } from "../types";
+import { TodayGame } from "../types/api";
 
 interface GamesTodayProps {
   onSelectGame?: (gameId: string) => void;
