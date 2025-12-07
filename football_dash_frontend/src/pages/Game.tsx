@@ -1,3 +1,5 @@
+// football_dash_frontend/src/pages/Game.tsx
+
 import { useParams, Link } from "react-router-dom";
 import useSWR from "swr";
 import { API } from "../api";
@@ -10,9 +12,13 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 export default function Game() {
   const { sport = "college-football", id = "" } = useParams();
+
   const isNfl = sport === "nfl";
 
-  // For now, the detailed bento view is only wired up for NFL.
+  // IMPORTANT:
+  // - We ONLY use ESPN (via /api/game/nfl/{id}) for NFL.
+  // - For college-football we do NOT call ESPN at all; detailed CFB
+  //   game view will be implemented later using CollegeFootballData.
   const { data } = useSWR(
     isNfl && id ? API.game("nfl", id) : null,
     fetcher
@@ -85,12 +91,12 @@ export default function Game() {
 function Team({ t }: any) {
   return (
     <div className="flex items-center gap-3">
-      {t.team?.logo && (
+      {t.team.logo && (
         <img src={t.team.logo} className="w-10 h-10 rounded-full" />
       )}
       <div>
-        <div className="font-semibold">{t.team?.name}</div>
-        <div className="text-xs opacity-60">{t.team?.record || ""}</div>
+        <div className="font-semibold">{t.team.name}</div>
+        <div className="text-xs opacity-60">{t.team.record || ""}</div>
       </div>
     </div>
   );
