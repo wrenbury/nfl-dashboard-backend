@@ -43,7 +43,9 @@ const fetcher = async (url: string) => {
       contentType || "(no content-type)",
       text
     );
-    throw new Error("Backend did not return JSON. Snippet: " + text.slice(0, 200));
+    throw new Error(
+      "Backend did not return JSON. Snippet: " + text.slice(0, 200)
+    );
   }
 
   return data;
@@ -148,8 +150,8 @@ export default function Game() {
           <div className="flex items-center justify-between gap-4 mb-4">
             {competitors[0] && <Team t={competitors[0]} />}
             <div className="text-3xl font-bold">
-              {competitors[0]?.score ?? "-"}{" "}
-              <span className="opacity-60 text-lg mx-1">–</span>{" "}
+              {competitors[0]?.score ?? "-"}
+              <span className="opacity-60 text-lg mx-1">–</span>
               {competitors[1]?.score ?? "-"}
             </div>
             {competitors[1] && <Team t={competitors[1]} />}
@@ -177,7 +179,7 @@ export default function Game() {
   );
 }
 
-function Team({ t }: any) {
+function Team({ t }: { t: any }) {
   return (
     <div className="flex items-center gap-3">
       {t.team?.logo && (
@@ -191,9 +193,7 @@ function Team({ t }: any) {
         <div className="font-semibold leading-tight">
           {t.team?.name ?? "Team"}
         </div>
-        <div className="text-xs opacity-60">
-          {t.team?.record ?? ""}
-        </div>
+        <div className="text-xs opacity-60">{t.team?.record ?? ""}</div>
       </div>
     </div>
   );
