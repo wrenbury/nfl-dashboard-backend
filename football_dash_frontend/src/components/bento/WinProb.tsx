@@ -42,9 +42,7 @@ function normalizeWinProb(raw: any): WinProbPoint[] {
     if (rawHome == null || !isFinite(rawHome)) continue;
 
     // Handle both 0–1 and 0–100 inputs
-    const asPct =
-      rawHome >= 0 && rawHome <= 1 ? rawHome * 100 : rawHome;
-
+    const asPct = rawHome >= 0 && rawHome <= 1 ? rawHome * 100 : rawHome;
     const homePct = Math.max(0, Math.min(100, asPct));
 
     let quarterLabel: string | undefined;
@@ -100,56 +98,40 @@ export default function WinProb({
   const homePctLabel = formatPercent(latest.home);
   const awayPctLabel = formatPercent(100 - latest.home);
 
-  // Approximate quarter ticks: 1st, 2nd, 3rd, 4th across the series
-  const n = data.length;
-  const quarterTicks: number[] = [];
-  if (n >= 4) {
-    quarterTicks.push(
-      data[Math.floor(n * 0.125)]?.idx ?? 0, // early 1st
-      data[Math.floor(n * 0.375)]?.idx ?? 0, // early 2nd
-      data[Math.floor(n * 0.625)]?.idx ?? 0, // early 3rd
-      data[Math.floor(n * 0.875)]?.idx ?? data[n - 1].idx // early 4th
-    );
-  }
-
-  const quarterLabels = ["1st", "2nd", "3rd", "4th"];
-
   return (
     <div className="card flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold">Win Probability</div>
-        <div className="flex items-baseline gap-4 text-xs">
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase opacity-60">{homeTeam}</span>
+        <div className="flex items-baseline gap-6 text-xs">
+          <div className="flex flex-col items-center">
+            <span className="text-[10px] uppercase opacity-60">
+              {homeTeam}
+            </span>
             <span className="text-base font-semibold">{homePctLabel}</span>
           </div>
-          <div className="flex flex-col items-end opacity-70">
+          <div className="flex flex-col items-center opacity-80">
             <span className="text-[10px] uppercase opacity-60">
               {awayTeam}
             </span>
-            <span className="text-sm font-medium">{awayPctLabel}</span>
+            <span className="text-base font-semibold">{awayPctLabel}</span>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 min-h-[180px]">
+      {/* Explicit fixed height so Recharts always renders */}
+      <div className="w-full h-40">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
-            margin={{ top: 8, right: 8, left: 0, bottom: 20 }}
+            margin={{ top: 8, right: 8, left: 0, bottom: 4 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}
               strokeOpacity={0.2}
             />
-            <XAxis
-              dataKey="idx"
-              ticks={quarterTicks}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(_, index) => quarterLabels[index] ?? ""}
-            />
+            {/* hide axis line; we'll show static quarter labels below */}
+            <XAxis dataKey="idx" hide />
             <YAxis
               domain={[0, 100]}
               tickFormatter={(v) => `${v}%`}
@@ -198,6 +180,14 @@ export default function WinProb({
             />
           </LineChart>
         </ResponsiveContainer>
+      </div>
+
+      {/* Static quarter labels under the chart */}
+      <div className="mt-1 flex justify-between text-[10px] opacity-50 px-1">
+        <span>1st</span>
+        <span>2nd</span>
+        <span>3rd</span>
+        <span>4th</span>
       </div>
 
       <div className="mt-2 text-[10px] text-right opacity-40">
