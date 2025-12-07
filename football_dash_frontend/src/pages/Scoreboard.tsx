@@ -10,20 +10,32 @@ export default function Scoreboard({
   sport: "nfl" | "college-football";
 }) {
   const date = new Date().toISOString().slice(0, 10).replaceAll("-", ""); // YYYYMMDD
+
   const { data, error, isLoading } = useSWR(
     API.scoreboard(sport, { date }),
     fetcher,
     { revalidateOnFocus: false }
   );
 
+  // Normalize whatever the backend returns into a flat games array
+  const games = Array.isArray(data)
+    ? data
+    : data?.games ?? data?.events ?? [];
+
   return (
     <div>
       <div className="mb-3 text-sm opacity-70">
         Showing: {sport.toUpperCase()} — {date}
       </div>
+
       {isLoading && <div>Loading…</div>}
-      {error && <div className="text-red-400">Failed to load.</div>}
-      {data && <GameList games={data} />}
+      {error && (
+        <div className="text-red-400 text-sm">
+          Failed to load scoreboard.
+        </div>
+      )}
+
+      {!isLoading && !error && <GameList games={games} />}
     </div>
   );
 }
