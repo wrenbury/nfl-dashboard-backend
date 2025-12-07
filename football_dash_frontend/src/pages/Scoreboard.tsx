@@ -2,7 +2,16 @@ import useSWR from "swr";
 import GameList from "../components/GameList";
 import { API } from "../api";
 
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  // Log and throw on non-2xx so SWR shows an error *and* we can debug in the console
+  if (!res.ok) {
+    const text = await res.text();
+    console.error("Scoreboard fetch error:", res.status, text);
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return res.json();
+};
 
 // Use LOCAL time instead of UTC so we don't roll over to "tomorrow" at night.
 function getLocalYyyyMmDd(): string {
@@ -20,14 +29,14 @@ export default function Scoreboard({
 }) {
   const date = getLocalYyyyMmDd();
 
-  // Unified scoreboard API (backend routes NFL to ESPN, CFB to CFBD)
+  // ✅ Unified backend: /api/scoreboard/{sport}?date=YYYYMMDD
   const endpoint = API.scoreboard(sport, { date });
 
   const { data, error, isLoading } = useSWR(endpoint, fetcher, {
     revalidateOnFocus: false,
   });
 
-  // /api/scoreboard always returns an array of games
+  // Backend returns List[GameSummary] for both NFL & CFB
   const games = Array.isArray(data) ? data : [];
 
   return (
@@ -37,6 +46,7 @@ export default function Scoreboard({
       </div>
 
       {isLoading && <div>Loading…</div>}
+
       {error && (
         <div className="text-red-400 text-sm">
           Failed to load scoreboard.
