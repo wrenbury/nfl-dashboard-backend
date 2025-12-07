@@ -19,36 +19,21 @@ export default function Scoreboard({
   sport: "nfl" | "college-football";
 }) {
   const date = getLocalYyyyMmDd();
-  const isCfb = sport === "college-football";
 
-  // ---- CFB: use explicit year + week so we see real games ----
-  // Adjust these to whatever slate you want to look at
-  const cfbYear = 2024;
-  const cfbWeek = 1;
-
-  const endpoint = isCfb
-    // CollegeFootballData scoreboard (our FastAPI router under /cfb)
-    ? `/cfb/scoreboard?year=${cfbYear}&week=${cfbWeek}`
-    // NFL scoreboard from ESPN (our FastAPI /api router)
-    : API.scoreboard(sport, { date });
+  // Unified scoreboard API (backend routes NFL to ESPN, CFB to CFBD)
+  const endpoint = API.scoreboard(sport, { date });
 
   const { data, error, isLoading } = useSWR(endpoint, fetcher, {
     revalidateOnFocus: false,
   });
 
-  // Normalize shape into a flat games array regardless of source
-  const games = Array.isArray(data)
-    ? data
-    : data?.games ?? data?.events ?? [];
+  // /api/scoreboard always returns an array of games
+  const games = Array.isArray(data) ? data : [];
 
   return (
     <div>
       <div className="mb-3 text-sm opacity-70">
-        {isCfb ? (
-          <>Showing: COLLEGE-FOOTBALL — Season {cfbYear}, Week {cfbWeek}</>
-        ) : (
-          <>Showing: {sport.toUpperCase()} — {date}</>
-        )}
+        <>Showing: {sport.toUpperCase()} — {date}</>
       </div>
 
       {isLoading && <div>Loading…</div>}
