@@ -1,3 +1,5 @@
+// football_dash_frontend/src/pages/Scoreboard.tsx
+
 import useSWR from "swr";
 import GameList from "../components/GameList";
 import { API } from "../api";
@@ -8,19 +10,25 @@ type Props = {
   sport: Sport;
 };
 
+// Robust fetcher that:
+// - Only tries to JSON-parse if content-type is JSON.
+// - Surfaces HTTP status and body snippet when things go wrong.
 const fetcher = async (url: string) => {
   const res = await fetch(url);
 
-  // Read raw text first so we can both parse AND show helpful errors.
+  const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
+
   let data: any = null;
 
-  if (text) {
+  if (contentType.includes("application/json")) {
     try {
-      data = JSON.parse(text);
+      data = text ? JSON.parse(text) : null;
     } catch (err) {
       console.error("Scoreboard JSON parse error:", err, text);
-      throw new Error("Invalid JSON received from backend");
+      throw new Error(
+        "Backend returned malformed JSON. Snippet: " + text.slice(0, 200)
+      );
     }
   }
 
@@ -32,6 +40,17 @@ const fetcher = async (url: string) => {
     }`;
     console.error("Scoreboard HTTP error:", msg);
     throw new Error(msg);
+  }
+
+  if (!contentType.includes("application/json")) {
+    console.error(
+      "Scoreboard non-JSON response:",
+      contentType || "(no content-type)",
+      text
+    );
+    throw new Error(
+      "Backend did not return JSON. Snippet: " + text.slice(0, 200)
+    );
   }
 
   return data;
