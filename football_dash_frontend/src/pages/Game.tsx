@@ -1,10 +1,10 @@
 import { useParams, Link } from "react-router-dom";
 import useSWR from "swr";
-import { API } from "../../lib/api";
-import BoxScore from "../components/Bento/BoxScore";
-import TeamStats from "../components/Bento/TeamStats";
-import PlayByPlay from "../components/Bento/PlayByPlay";
-import WinProb from "../components/Bento/WinProb";
+import { API } from "../api";
+import BoxScore from "../components/bento/BoxScore";
+import TeamStats from "../components/bento/TeamStats";
+import PlayByPlay from "../components/bento/PlayByPlay";
+import WinProb from "../components/bento/WinProb";
 
 const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
