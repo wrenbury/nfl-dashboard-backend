@@ -1,54 +1,76 @@
-import { useParams, Link } from "react-router-dom"
-import useSWR from "swr"
-import { API } from "../lib/api"
-import BoxScore from "../components/Bento/BoxScore"
-import TeamStats from "../components/Bento/TeamStats"
-import PlayByPlay from "../components/Bento/PlayByPlay"
-import WinProb from "../components/Bento/WinProb"
+import { useParams, Link } from "react-router-dom";
+import useSWR from "swr";
+import { API } from "../../lib/api";
+import BoxScore from "../components/Bento/BoxScore";
+import TeamStats from "../components/Bento/TeamStats";
+import PlayByPlay from "../components/Bento/PlayByPlay";
+import WinProb from "../components/Bento/WinProb";
 
-const fetcher = (u:string)=>fetch(u).then(r=>r.json())
+const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
-export default function Game(){
-  const { sport = 'college-football', id = '' } = useParams()
-  const { data } = useSWR(API.game(sport as any, id), fetcher)
+export default function Game() {
+  const { sport = "college-football", id = "" } = useParams();
+  const { data } = useSWR(API.game(sport as any, id), fetcher);
 
-  if (!data) return <div className="p-6">Loading…</div>
-  const s = data.summary
-  const [away, home] = s.competitors[0].homeAway === 'away' ? s.competitors : [s.competitors[1], s.competitors[0]]
+  if (!data) return <div className="p-6">Loading…</div>;
+
+  const s = data.summary;
 
   return (
-    <div className="grid gap-4 grid-cols-1 lg:grid-cols-3">
-      <div className="lg:col-span-2 card">
-        <header className="flex items-center justify-between">
-          <Link to={`/${sport}`} className="text-sm opacity-60">← Back</Link>
-          <div className="text-lg">{s.venue}</div>
-        </header>
-        <div className="mt-3 flex items-center justify-between">
-          <Team t={away} />
-          <div className="text-4xl font-black">{away.score ?? '-'} — {home.score ?? '-'}</div>
-          <Team t={home} />
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <Link to={`/${sport}`} className="text-sm opacity-70 hover:underline">
+          ← Back to scoreboard
+        </Link>
+        <div className="text-xs opacity-60">
+          {s.startTime} • {s.status.type.detail}
         </div>
-        <div className="mt-1 text-sm opacity-70">{s.status}</div>
       </div>
 
-      <div className="grid gap-4">
-        <BoxScore data={data.boxscore}/>
-        <TeamStats data={data.teamStats}/>
-        <WinProb data={data.winProbability}/>
-        <PlayByPlay data={data.plays}/>
+      <div className="grid md:grid-cols-[2fr_1fr] gap-4">
+        {/* Score header / teams */}
+        <div className="card">
+          <div className="flex items-center justify-between gap-4 mb-4">
+            <Team t={s.competitors[0]} />
+            <div className="text-3xl font-bold">
+              {s.competitors[0].score} - {s.competitors[1].score}
+            </div>
+            <Team t={s.competitors[1]} />
+          </div>
+          <div className="text-xs opacity-60 flex justify-between">
+            <span>{s.venue.fullName}</span>
+            <span>{s.status.type.description}</span>
+          </div>
+        </div>
+
+        {/* Win probability card */}
+        <WinProb winProbability={data.winProbability} />
+      </div>
+
+      {/* Bento grid */}
+      <div className="grid lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-4">
+          <BoxScore boxscore={data.boxscore} />
+          <PlayByPlay plays={data.plays} />
+        </div>
+        <div>
+          <TeamStats teamStats={data.teamStats} />
+        </div>
       </div>
     </div>
-  )
+  );
 }
 
-function Team({ t }:any){
+function Team({ t }: any) {
   return (
     <div className="flex items-center gap-3">
-      {t.team.logo && <img src={t.team.logo} className="w-10 h-10 rounded-full" />}
+      {t.team.logo && (
+        <img src={t.team.logo} className="w-10 h-10 rounded-full" />
+      )}
       <div>
         <div className="font-semibold">{t.team.name}</div>
-        <div className="text-xs opacity-60">{t.team.record || ''}</div>
+        <div className="text-xs opacity-60">{t.team.record || ""}</div>
       </div>
     </div>
-  )
+  );
 }
