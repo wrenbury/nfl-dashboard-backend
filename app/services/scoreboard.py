@@ -55,6 +55,20 @@ def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
 
 
 # ---------------------------------------------------------------------------
+# Helpers for CFBD scoreboard
+# ---------------------------------------------------------------------------
+
+def _pick_score(*values: object) -> int:
+    """Pick the first usable integer score from a list of possible fields."""
+    for v in values:
+        if isinstance(v, int):
+            return v
+        if isinstance(v, str) and v.isdigit():
+            return int(v)
+    return 0
+
+
+# ---------------------------------------------------------------------------
 # College Football scoreboard via CollegeFootballData
 # ---------------------------------------------------------------------------
 
@@ -62,7 +76,8 @@ def _build_cfb_scoreboard_from_cfbd(
     date: str | None,
     week: int | None,
 ) -> List[GameSummary]:
-    """Build a GameSummary-style scoreboard for college football using CFBD.
+    """
+    Build a GameSummary-style scoreboard for college football using CFBD.
 
     This keeps the same GameSummary shape used for NFL so the frontend can treat
     both leagues uniformly while sourcing data from different providers.
@@ -100,26 +115,62 @@ def _build_cfb_scoreboard_from_cfbd(
         if not isinstance(g, dict):
             continue
 
-        game_id = str(g.get("id") or "")
+        # Game id
+        game_id = str(g.get("id") or g.get("game_id") or "")
         if not game_id:
             continue
 
-        home_team_name = g.get("home_team") or "Home"
-        away_team_name = g.get("away_team") or "Away"
+        # Try multiple possible field names for teams (handle schema variants)
+        home_team_name = (
+            g.get("home_team")
+            or g.get("homeTeam")
+            or g.get("home_team_name")
+            or g.get("home")
+        )
+        away_team_name = (
+            g.get("away_team")
+            or g.get("awayTeam")
+            or g.get("away_team_name")
+            or g.get("away")
+        )
 
-        home_points = g.get("home_points")
-        away_points = g.get("away_points")
+        # If CFBD hasn't populated team names yet, skip this game entirely.
+        if not home_team_name or not away_team_name:
+            continue
 
-        # Normalize CFBD status into a simple state, then map to a human label
-        state = _normalize_cfb_status(g.get("status"), g.get("completed"))
+        home_team_id = (
+            g.get("home_id")
+            or g.get("home_team_id")
+            or home_team_name
+        )
+        away_team_id = (
+            g.get("away_id")
+            or g.get("away_team_id")
+            or away_team_name
+        )
+
+        home_points = _pick_score(
+            g.get("home_points"),
+            g.get("homeScore"),
+            g.get("home_score"),
+        )
+        away_points = _pick_score(
+            g.get("away_points"),
+            g.get("awayScore"),
+            g.get("away_score"),
+        )
+
+        # Normalize CFBD status into a simple state, then map to a human label.
+        raw_status = g.get("status") or g.get("status_name")
+        state = _normalize_cfb_status(raw_status, g.get("completed"))
         status_desc = STATUS_LABELS.get(state, "Scheduled")
 
-        venue = g.get("venue")
+        venue = g.get("venue") or g.get("venue_name")
 
         home_comp = Competitor(
             team=Team(
-                id=str(g.get("home_id") or home_team_name),
-                name=home_team_name,
+                id=str(home_team_id),
+                name=str(home_team_name),
                 nickname=None,
                 abbreviation=None,
                 color=None,
@@ -128,13 +179,13 @@ def _build_cfb_scoreboard_from_cfbd(
                 rank=None,
             ),
             homeAway="home",
-            score=home_points if isinstance(home_points, int) else 0,
+            score=home_points,
         )
 
         away_comp = Competitor(
             team=Team(
-                id=str(g.get("away_id") or away_team_name),
-                name=away_team_name,
+                id=str(away_team_id),
+                name=str(away_team_name),
                 nickname=None,
                 abbreviation=None,
                 color=None,
@@ -143,11 +194,16 @@ def _build_cfb_scoreboard_from_cfbd(
                 rank=None,
             ),
             homeAway="away",
-            score=away_points if isinstance(away_points, int) else 0,
+            score=away_points,
         )
 
-        # CFBD sometimes omits start_date; Pydantic requires a string, not None.
-        start_time = g.get("start_date") or ""
+        # CFBD may use different fields for time; fall back to empty string if missing.
+        start_time = (
+            g.get("start_date")
+            or g.get("start_time")
+            or g.get("game_date")
+            or ""
+        )
 
         # Keep away/home ordering consistent with ESPN mapping (away first).
         competitors = [away_comp, home_comp]
