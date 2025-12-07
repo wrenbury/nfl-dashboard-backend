@@ -1,5 +1,3 @@
-// football_dash_frontend/src/pages/Scoreboard.tsx
-
 import useSWR from "swr";
 import GameList from "../components/GameList";
 import { API } from "../api";
@@ -13,7 +11,7 @@ type Props = {
 const fetcher = async (url: string) => {
   const res = await fetch(url);
 
-  // Always read the raw text so we can safely parse / log
+  // Read raw text first so we can both parse AND show helpful errors.
   const text = await res.text();
   let data: any = null;
 
@@ -21,7 +19,6 @@ const fetcher = async (url: string) => {
     try {
       data = JSON.parse(text);
     } catch (err) {
-      // If backend ever returns non-JSON (proxy error, HTML, etc.), surface that clearly.
       console.error("Scoreboard JSON parse error:", err, text);
       throw new Error("Invalid JSON received from backend");
     }
@@ -52,19 +49,15 @@ function getLocalYyyyMmDd(): string {
 export default function Scoreboard({ sport }: Props) {
   const date = getLocalYyyyMmDd();
 
-  // Unified backend: /api/scoreboard/{sport}?date=YYYYMMDD
-  // NFL -> ESPN, CFB -> CollegeFootballData (implemented in app.services.scoreboard)
+  // Unified backend:
+  //   - /api/scoreboard/nfl?date=YYYYMMDD -> ESPN
+  //   - /api/scoreboard/college-football?date=YYYYMMDD -> CFBD
   const endpoint = API.scoreboard(sport, { date });
 
-  const {
-    data,
-    error,
-    isLoading,
-  } = useSWR(endpoint, fetcher, {
+  const { data, error, isLoading } = useSWR(endpoint, fetcher, {
     revalidateOnFocus: false,
   });
 
-  // Backend returns List[GameSummary] for both NFL & CFB
   const games = Array.isArray(data) ? data : [];
 
   return (
@@ -76,8 +69,10 @@ export default function Scoreboard({ sport }: Props) {
       {isLoading && <div>Loading…</div>}
 
       {error && (
-        <div className="text-red-400 text-sm">
+        <div className="text-red-400 text-sm whitespace-pre-wrap">
           Failed to load scoreboard.
+          {"\n"}
+          {(error as Error).message}
         </div>
       )}
 
