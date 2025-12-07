@@ -7,6 +7,7 @@ from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
 
 import httpx
+from .config import settings
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
@@ -30,17 +31,13 @@ StatusState = str  # "pre" | "in" | "post" | "halftime" | "final" | "delayed"
 def _cfbd_headers() -> Dict[str, str]:
     """
     Build headers for CollegeFootballData API calls, including the API key
-    if present in the environment.
+    if present in the environment (CFBD_API_KEY) or via our Settings (CFBD_TOKEN).
     """
     headers: Dict[str, str] = {"accept": "application/json"}
-    api_key = os.getenv(CFBD_API_KEY_ENV)
+    api_key = os.getenv(CFBD_API_KEY_ENV) or settings.CFBD_TOKEN
     if api_key:
-        headers = 
-            {"Authorization": f"Bearer {CFBD_API_KEY}",  # or settings.cfbd_api_key, etc.
-            "Accept": "application/json",
-            }
-}
-
+        # CollegeFootballData expects a Bearer token in the Authorization header.
+        headers["Authorization"] = f"Bearer {api_key}"
     return headers
 
 
