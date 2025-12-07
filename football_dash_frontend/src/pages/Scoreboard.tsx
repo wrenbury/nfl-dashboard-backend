@@ -10,17 +10,12 @@ type Props = {
   sport: Sport;
 };
 
-// Robust fetcher that:
-// - Only tries to JSON-parse if content-type is JSON.
-// - Surfaces HTTP status and body snippet when things go wrong.
 const fetcher = async (url: string) => {
   const res = await fetch(url);
-
   const contentType = res.headers.get("content-type") || "";
   const text = await res.text();
 
   let data: any = null;
-
   if (contentType.includes("application/json")) {
     try {
       data = text ? JSON.parse(text) : null;
@@ -56,7 +51,6 @@ const fetcher = async (url: string) => {
   return data;
 };
 
-// Use LOCAL time instead of UTC so we don't roll over to "tomorrow" at night.
 function getLocalYyyyMmDd(): string {
   const now = new Date();
   const y = now.getFullYear();
@@ -67,10 +61,6 @@ function getLocalYyyyMmDd(): string {
 
 export default function Scoreboard({ sport }: Props) {
   const date = getLocalYyyyMmDd();
-
-  // Unified backend:
-  //   - /api/scoreboard/nfl?date=YYYYMMDD -> ESPN
-  //   - /api/scoreboard/college-football?date=YYYYMMDD -> CFBD
   const endpoint = API.scoreboard(sport, { date });
 
   const { data, error, isLoading } = useSWR(endpoint, fetcher, {
@@ -80,22 +70,34 @@ export default function Scoreboard({ sport }: Props) {
   const games = Array.isArray(data) ? data : [];
 
   return (
-    <div>
-      <div className="mb-3 text-sm opacity-70">
-        <>Showing: {sport.toUpperCase()} — {date}</>
+    <section className="space-y-4">
+      <div className="flex items-baseline justify-between">
+        <div className="text-sm opacity-70">
+          Showing:{" "}
+          <span className="font-semibold">
+            {sport === "nfl" ? "NFL" : "COLLEGE-FOOTBALL"}
+          </span>{" "}
+          — {date}
+        </div>
       </div>
 
-      {isLoading && <div>Loading…</div>}
+      {isLoading && (
+        <div className="text-sm opacity-80">Loading scoreboard…</div>
+      )}
 
       {error && (
-        <div className="text-red-400 text-sm whitespace-pre-wrap">
+        <div className="text-sm text-red-400 whitespace-pre-wrap card">
           Failed to load scoreboard.
           {"\n"}
           {(error as Error).message}
         </div>
       )}
 
-      {!isLoading && !error && <GameList games={games} />}
-    </div>
+      {!isLoading && !error && (
+        <div className="space-y-3">
+          <GameList games={games} />
+        </div>
+      )}
+    </section>
   );
 }
