@@ -21,6 +21,7 @@ type WinProbPoint = {
   idx: number;
   home: number; // 0–100
   quarter?: string;
+  periodNum?: number;
 };
 
 function normalizeWinProb(raw: any): WinProbPoint[] {
@@ -45,23 +46,30 @@ function normalizeWinProb(raw: any): WinProbPoint[] {
     const homePct = Math.max(0, Math.min(100, asPct));
 
     let quarterLabel: string | undefined;
+    let periodNum: number | undefined;
+
     const p =
       typeof wp.period === "number"
         ? wp.period
         : typeof wp.period?.number === "number"
         ? wp.period.number
         : undefined;
-    if (p && p >= 1 && p <= 4) {
-      const labels = ["", "1st", "2nd", "3rd", "4th"];
-      quarterLabel = labels[p] ?? `${p}th`;
-    } else if (p && p > 4) {
-      quarterLabel = "OT";
+
+    if (typeof p === "number") {
+      periodNum = p;
+      if (p >= 1 && p <= 4) {
+        const labels = ["", "1st", "2nd", "3rd", "4th"];
+        quarterLabel = labels[p] ?? `${p}th`;
+      } else if (p > 4) {
+        quarterLabel = "OT";
+      }
     }
 
     points.push({
       idx: i,
       home: Math.round(homePct),
       quarter: quarterLabel,
+      periodNum,
     });
   }
 
@@ -96,6 +104,15 @@ export default function WinProb({
   const latest = data[data.length - 1];
   const homePctLabel = formatPercent(latest.home);
   const awayPctLabel = formatPercent(100 - latest.home);
+
+  // Determine how many quarters to label based on data (1–4).
+  const maxPeriodInData = data.reduce((max, p) => {
+    if (p.periodNum && p.periodNum > max) return p.periodNum;
+    return max;
+  }, 0);
+  const periodCount =
+    maxPeriodInData >= 1 && maxPeriodInData <= 4 ? maxPeriodInData : 4;
+  const quarterLabels = ["1st", "2nd", "3rd", "4th"].slice(0, periodCount);
 
   return (
     <div className="card flex flex-col">
@@ -182,11 +199,11 @@ export default function WinProb({
         </ResponsiveContainer>
       </div>
 
+      {/* Quarter labels – only up to the current period in data */}
       <div className="mt-1 flex justify-between text-[10px] opacity-50 px-1">
-        <span>1st</span>
-        <span>2nd</span>
-        <span>3rd</span>
-        <span>4th</span>
+        {quarterLabels.map((label) => (
+          <span key={label}>{label}</span>
+        ))}
       </div>
 
       <div className="mt-2 text-[10px] text-right opacity-40">
