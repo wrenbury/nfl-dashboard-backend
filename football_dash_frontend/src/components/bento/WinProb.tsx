@@ -20,7 +20,6 @@ type Props = {
 type WinProbPoint = {
   idx: number;
   home: number; // 0–100
-  // For tooltips only
   quarter?: string;
 };
 
@@ -32,19 +31,22 @@ function normalizeWinProb(raw: any): WinProbPoint[] {
   for (let i = 0; i < raw.length; i++) {
     const wp = raw[i] || {};
 
-    // ESPN usually provides 0–1
-    const rawHome =
-      typeof wp.homeWinPercentage === "number"
-        ? wp.homeWinPercentage
-        : typeof wp.homeWinProb === "number"
-        ? wp.homeWinProb
-        : null;
+    let rawHome: number | null = null;
 
-    if (rawHome == null) continue;
+    if (typeof wp.homeWinPercentage === "number") {
+      rawHome = wp.homeWinPercentage;
+    } else if (typeof wp.homeWinProb === "number") {
+      rawHome = wp.homeWinProb;
+    }
 
-    const homePct = Math.max(0, Math.min(1, rawHome)) * 100;
+    if (rawHome == null || !isFinite(rawHome)) continue;
 
-    // Quarter/period if present (for tooltip)
+    // Handle both 0–1 and 0–100 inputs
+    const asPct =
+      rawHome >= 0 && rawHome <= 1 ? rawHome * 100 : rawHome;
+
+    const homePct = Math.max(0, Math.min(100, asPct));
+
     let quarterLabel: string | undefined;
     const p =
       typeof wp.period === "number"
@@ -85,7 +87,7 @@ export default function WinProb({
 
   if (!data.length) {
     return (
-      <div className="card h-full flex flex-col justify-center">
+      <div className="card flex flex-col justify-center">
         <div className="text-sm font-semibold mb-1">Win Probability</div>
         <div className="text-xs opacity-70">
           Win probability data is not available for this game.
@@ -98,8 +100,22 @@ export default function WinProb({
   const homePctLabel = formatPercent(latest.home);
   const awayPctLabel = formatPercent(100 - latest.home);
 
+  // Approximate quarter ticks: 1st, 2nd, 3rd, 4th across the series
+  const n = data.length;
+  const quarterTicks: number[] = [];
+  if (n >= 4) {
+    quarterTicks.push(
+      data[Math.floor(n * 0.125)]?.idx ?? 0, // early 1st
+      data[Math.floor(n * 0.375)]?.idx ?? 0, // early 2nd
+      data[Math.floor(n * 0.625)]?.idx ?? 0, // early 3rd
+      data[Math.floor(n * 0.875)]?.idx ?? data[n - 1].idx // early 4th
+    );
+  }
+
+  const quarterLabels = ["1st", "2nd", "3rd", "4th"];
+
   return (
-    <div className="card h-full flex flex-col">
+    <div className="card flex flex-col">
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold">Win Probability</div>
         <div className="flex items-baseline gap-4 text-xs">
@@ -118,7 +134,10 @@ export default function WinProb({
 
       <div className="flex-1 min-h-[180px]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+          <LineChart
+            data={data}
+            margin={{ top: 8, right: 8, left: 0, bottom: 20 }}
+          >
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}
@@ -126,9 +145,10 @@ export default function WinProb({
             />
             <XAxis
               dataKey="idx"
-              hide
+              ticks={quarterTicks}
               tickLine={false}
               axisLine={false}
+              tickFormatter={(_, index) => quarterLabels[index] ?? ""}
             />
             <YAxis
               domain={[0, 100]}
@@ -137,7 +157,6 @@ export default function WinProb({
               axisLine={false}
               width={32}
             />
-            {/* 50% midline */}
             <ReferenceLine
               y={50}
               stroke="#ffffff"
@@ -175,9 +194,6 @@ export default function WinProb({
               dataKey="home"
               dot={false}
               strokeWidth={2}
-              // We intentionally don't set a color here; Recharts will
-              // pick a default. If you want to match ESPN exactly we
-              // can tweak this later.
               isAnimationActive={false}
             />
           </LineChart>
