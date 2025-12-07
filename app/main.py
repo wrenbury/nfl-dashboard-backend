@@ -6,6 +6,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from .cfb_scoreboard import router as cfb_router
 
 from .schemas import (
     Analytics,
