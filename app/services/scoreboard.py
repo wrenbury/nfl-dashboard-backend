@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from ..models.schemas import *
 from ..clients import espn, cfbd
 from ..cfb_scoreboard import _get_week_for_date, _normalize_cfb_status
+from ..utils.cfb_logos import get_cfb_logo
 
 
 def _map_competitor(raw) -> Competitor:
@@ -188,6 +189,9 @@ def _build_cfb_scoreboard_from_cfbd(
 
         venue = g.get("venue") or g.get("venue_name")
 
+        home_logo = get_cfb_logo(str(home_team_name))
+        away_logo = get_cfb_logo(str(away_team_name))
+
         home_comp = Competitor(
             team=Team(
                 id=str(home_team_id),
@@ -195,7 +199,7 @@ def _build_cfb_scoreboard_from_cfbd(
                 nickname=None,
                 abbreviation=None,
                 color=None,
-                logo=None,
+                logo=home_logo,
                 record=None,
                 rank=None,
             ),
@@ -210,7 +214,7 @@ def _build_cfb_scoreboard_from_cfbd(
                 nickname=None,
                 abbreviation=None,
                 color=None,
-                logo=None,
+                logo=away_logo,
                 record=None,
                 rank=None,
             ),
