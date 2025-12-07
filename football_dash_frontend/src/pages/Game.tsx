@@ -1,4 +1,5 @@
 // football_dash_frontend/src/pages/Game.tsx
+// (full component, with true 2-column bento layout: left stacked, right stacked)
 
 import { useParams, Link } from "react-router-dom";
 import useSWR from "swr";
@@ -150,37 +151,38 @@ export default function Game() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-[2fr,1fr] gap-4 items-start">
-        <div className="card">
-          <div className="flex items-center justify-between gap-4 mb-4">
-            {competitors[0] && <Team t={competitors[0]} />}
-            <div className="text-3xl font-bold">
-              {competitors[0]?.score ?? "-"}
-              <span className="opacity-60 text-lg mx-1">–</span>
-              {competitors[1]?.score ?? "-"}
+      {/* True two-column bento layout: left stack, right stack */}
+      <div className="grid lg:grid-cols-[2.2fr,1.3fr] gap-4 items-start">
+        {/* LEFT COLUMN */}
+        <div className="space-y-4">
+          {/* Score header card */}
+          <div className="card">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              {competitors[0] && <Team t={competitors[0]} />}
+              <div className="text-3xl font-bold">
+                {competitors[0]?.score ?? "-"}
+                <span className="opacity-60 text-lg mx-1">–</span>
+                {competitors[1]?.score ?? "-"}
+              </div>
+              {competitors[1] && <Team t={competitors[1]} />}
             </div>
-            {competitors[1] && <Team t={competitors[1]} />}
+            {s.venue && (
+              <div className="text-xs opacity-60">Venue: {s.venue}</div>
+            )}
           </div>
-          {s.venue && (
-            <div className="text-xs opacity-60">Venue: {s.venue}</div>
-          )}
+
+          {/* Box score + play by play below it */}
+          <BoxScore boxscore={data.boxscore} />
+          <PlayByPlay plays={data.plays} />
         </div>
 
+        {/* RIGHT COLUMN */}
         <div className="space-y-4">
           <WinProb
             winProbability={data.winProbability}
             homeTeam={homeName}
             awayTeam={awayName}
           />
-        </div>
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4">
-          <BoxScore boxscore={data.boxscore} />
-          <PlayByPlay plays={data.plays} />
-        </div>
-        <div>
           <TeamStats teamStats={data.teamStats} />
         </div>
       </div>
