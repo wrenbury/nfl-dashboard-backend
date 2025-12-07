@@ -10,14 +10,19 @@ export default function Scoreboard({
   sport: "nfl" | "college-football";
 }) {
   const date = new Date().toISOString().slice(0, 10).replaceAll("-", ""); // YYYYMMDD
+  const isCfb = sport === "college-football";
 
-  const { data, error, isLoading } = useSWR(
-    API.scoreboard(sport, { date }),
-    fetcher,
-    { revalidateOnFocus: false }
-  );
+  // ✅ NFL → ESPN via /api/scoreboard/nfl
+  // ✅ CFB → CollegeFootballData via /cfb/scoreboard
+  const endpoint = isCfb
+    ? `/cfb/scoreboard?date=${date}`
+    : API.scoreboard(sport, { date });
 
-  // Normalize whatever the backend returns into a flat games array
+  const { data, error, isLoading } = useSWR(endpoint, fetcher, {
+    revalidateOnFocus: false,
+  });
+
+  // Normalize shape into a flat games array regardless of source
   const games = Array.isArray(data)
     ? data
     : data?.games ?? data?.events ?? [];
