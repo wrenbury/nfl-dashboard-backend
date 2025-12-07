@@ -38,11 +38,13 @@ app = FastAPI(title="Football Dashboard API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ok for LAN / dev
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(cfb_router)
 
 
 @app.get("/health")
