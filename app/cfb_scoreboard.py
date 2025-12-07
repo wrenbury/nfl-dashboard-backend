@@ -9,6 +9,7 @@ from datetime import date as _Date  # <-- add this line
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+from .config import settings
 from fastapi.responses import JSONResponse
 
 # NOTE:
@@ -22,7 +23,7 @@ from fastapi.responses import JSONResponse
 router = APIRouter()
 
 CFBD_BASE_URL = "https://api.collegefootballdata.com"
-CFBD_API_KEY_ENV = "CFBD_API_KEY"
+CFBD_API_KEY_ENV = "CFBD_TOKEN"
 
 
 StatusState = str  # "pre" | "in" | "post" | "halftime" | "final" | "delayed"
@@ -367,22 +368,22 @@ def get_cfb_scoreboard(
             "used to infer year/week via CFBD /calendar."
         ),
     ),
+    season: Optional[int] = Query(
+        None,
+        ge=2000,
+        le=2100,
+        description="Alias for `year` used by the frontend (season year).",
+    ),
 ):
     """
     College Football scoreboard using the CollegeFootballData API.
-
-    You can either:
-    - supply an explicit `year` and `week`, or
-    - supply a `date` (YYYYMMDD) and let the server derive the week from the
-      CFBD /calendar endpoint.
-
-    Returns:
-        {
-          "season": number,
-          "week": number | null,
-          "games": CfbScoreboardGame[]
-        }
+    ...
     """
+    # Allow the frontend to pass `season` instead of `year`.
+    # If `year` is not explicitly provided, promote `season` into `year`.
+    if year is None and season is not None:
+        year = season
+
     try:
         # Derive year/week from date if needed
         if date:
@@ -393,7 +394,7 @@ def get_cfb_scoreboard(
                 week = _get_week_for_date(year, date)
 
         # If after all of the above we still don't have both, treat this as
-        # "no games" instead of an error so the UI can show a friendly message.
+        # "no games"
         if year is None or week is None:
             return JSONResponse(
                 status_code=200,
@@ -418,7 +419,7 @@ def get_cfb_scoreboard(
         games_out: List[Dict[str, Any]] = []
         for g in games_raw:
             try:
-                mapped = _map_game_to_scoreboard(g, teams_meta, ranks_meta)
+                mapped = _map_cfb_game(g, teams_meta, ranks_meta)
             except Exception:
                 # One bad game should not kill the whole board.
                 continue
