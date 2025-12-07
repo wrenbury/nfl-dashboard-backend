@@ -146,7 +146,8 @@ def _build_cfb_scoreboard_from_cfbd(
             score=away_points if isinstance(away_points, int) else 0,
         )
 
-        start_time = g.get("start_date")  # CFBD uses ISO 8601-like timestamps
+        # CFBD sometimes omits start_date; Pydantic requires a string, not None.
+        start_time = g.get("start_date") or ""
 
         # Keep away/home ordering consistent with ESPN mapping (away first).
         competitors = [away_comp, home_comp]
