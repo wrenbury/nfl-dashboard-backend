@@ -105,14 +105,50 @@ export default function WinProb({
   const homePctLabel = formatPercent(latest.home);
   const awayPctLabel = formatPercent(100 - latest.home);
 
-  // Determine how many quarters to label based on data (1–4).
-  const maxPeriodInData = data.reduce((max, p) => {
-    if (p.periodNum && p.periodNum > max) return p.periodNum;
-    return max;
-  }, 0);
-  const periodCount =
-    maxPeriodInData >= 1 && maxPeriodInData <= 4 ? maxPeriodInData : 4;
-  const quarterLabels = ["1st", "2nd", "3rd", "4th"].slice(0, periodCount);
+  // --- Quarter tick positions (match ESPN-style spacing) ---
+
+  // Build min/max index per period from actual data
+  const segments: Record<number, { min: number; max: number }> = {};
+  for (const p of data) {
+    if (!p.periodNum || p.periodNum < 1 || p.periodNum > 4) continue;
+    const seg = segments[p.periodNum] ?? { min: p.idx, max: p.idx };
+    seg.min = Math.min(seg.min, p.idx);
+    seg.max = Math.max(seg.max, p.idx);
+    segments[p.periodNum] = seg;
+  }
+
+  const lastIdx = data[data.length - 1].idx;
+  const labelsByPeriod: Record<number, string> = {
+    1: "1st",
+    2: "2nd",
+    3: "3rd",
+    4: "4th",
+  };
+
+  const quarterTicks: number[] = [];
+  const quarterTickLabels: string[] = [];
+
+  const maxPeriodInData = Object.keys(segments)
+    .map((k) => Number(k))
+    .reduce((m, v) => Math.max(m, v), 0);
+
+  if (maxPeriodInData) {
+    // Use real segment midpoints for the periods we actually have
+    for (let p = 1; p <= maxPeriodInData; p++) {
+      const seg = segments[p];
+      if (!seg) continue;
+      const mid = (seg.min + seg.max) / 2;
+      quarterTicks.push(mid);
+      quarterTickLabels.push(labelsByPeriod[p]);
+    }
+  } else {
+    // Fallback: evenly spaced quarters across the data range
+    const step = lastIdx / 4;
+    for (let p = 1; p <= 4; p++) {
+      quarterTicks.push(step * p - step / 2);
+      quarterTickLabels.push(labelsByPeriod[p]);
+    }
+  }
 
   return (
     <div className="card flex flex-col">
@@ -134,7 +170,7 @@ export default function WinProb({
         </div>
       </div>
 
-      {/* Chart + custom Y labels */}
+      {/* Chart with custom Y labels and ESPN-like quarter spacing */}
       <div className="relative w-full h-40">
         {/* Custom Y-axis labels: 100 / 50 / 100 like ESPN */}
         <div className="absolute inset-y-1 left-0 flex flex-col justify-between text-[10px] opacity-50 pointer-events-none">
@@ -146,14 +182,20 @@ export default function WinProb({
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
-            margin={{ top: 8, right: 8, left: 24, bottom: 4 }}
+            margin={{ top: 8, right: 8, left: 24, bottom: 20 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}
               strokeOpacity={0.2}
             />
-            <XAxis dataKey="idx" hide />
+            <XAxis
+              dataKey="idx"
+              ticks={quarterTicks}
+              tickLine={false}
+              axisLine={false}
+              tickFormatter={(_, index) => quarterTickLabels[index] ?? ""}
+            />
             {/* Keep Y domain but hide native ticks; we draw our own labels */}
             <YAxis domain={[0, 100]} tick={false} axisLine={false} />
             <ReferenceLine
@@ -197,13 +239,6 @@ export default function WinProb({
             />
           </LineChart>
         </ResponsiveContainer>
-      </div>
-
-      {/* Quarter labels – only up to the current period in data */}
-      <div className="mt-1 flex justify-between text-[10px] opacity-50 px-1">
-        {quarterLabels.map((label) => (
-          <span key={label}>{label}</span>
-        ))}
       </div>
 
       <div className="mt-2 text-[10px] text-right opacity-40">
