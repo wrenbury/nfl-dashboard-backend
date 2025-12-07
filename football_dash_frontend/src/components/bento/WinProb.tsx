@@ -1,5 +1,4 @@
 // football_dash_frontend/src/components/bento/WinProb.tsx
-// (full file, with Y-axis fixed to 0–100 and clean tick labels)
 
 import {
   ResponsiveContainer,
@@ -118,7 +117,6 @@ export default function WinProb({
         </div>
       </div>
 
-      {/* Fixed height so Recharts always renders */}
       <div className="w-full h-40">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -133,11 +131,13 @@ export default function WinProb({
             <XAxis dataKey="idx" hide />
             <YAxis
               domain={[0, 100]}
-              ticks={[0, 25, 50, 75, 100]}
-              tickFormatter={(v) => `${v}%`}
+              ticks={[0, 50, 100]}
+              tickFormatter={(_, index) =>
+                index === 1 ? "50%" : "100%"
+              }
               tickLine={false}
               axisLine={false}
-              width={32}
+              width={36}
             />
             <ReferenceLine
               y={50}
