@@ -1,3 +1,5 @@
+# app/services/scoreboard.py
+
 from typing import List, Optional
 from datetime import datetime, timezone
 
@@ -59,7 +61,12 @@ def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
 # ---------------------------------------------------------------------------
 
 def _pick_score(*values: object) -> int:
-    """Pick the first usable numeric score from a list of possible fields."""
+    """
+    Pick the first usable numeric score from a list of possible fields.
+
+    CFBD v2 uses camelCase (homePoints/awayPoints). Older clients and some
+    exports may use snake_case (home_points/away_points) or Score variants.
+    """
     for v in values:
         if isinstance(v, bool):
             # avoid treating True/False as 1/0
@@ -108,6 +115,7 @@ def _build_cfb_scoreboard_from_cfbd(
     if cfbd_week is None:
         return []
 
+    # CFBD /games -> "Games and results" (includes points in v2).
     raw_games = cfbd.games(year=year, week=cfbd_week, seasonType="regular") or []
     out: List[GameSummary] = []
 
@@ -159,12 +167,15 @@ def _build_cfb_scoreboard_from_cfbd(
             or away_team_name
         )
 
+        # Try CFBD v2 camelCase first (homePoints/awayPoints) then snake_case.
         home_points = _pick_score(
+            g.get("homePoints"),
             g.get("home_points"),
             g.get("homeScore"),
             g.get("home_score"),
         )
         away_points = _pick_score(
+            g.get("awayPoints"),
             g.get("away_points"),
             g.get("awayScore"),
             g.get("away_score"),
@@ -210,6 +221,7 @@ def _build_cfb_scoreboard_from_cfbd(
         # CFBD may use different fields for time; fall back to empty string if missing.
         start_time = (
             g.get("start_date")
+            or g.get("startTime")
             or g.get("start_time")
             or g.get("game_date")
             or ""
