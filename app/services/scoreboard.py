@@ -59,12 +59,22 @@ def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
 # ---------------------------------------------------------------------------
 
 def _pick_score(*values: object) -> int:
-    """Pick the first usable integer score from a list of possible fields."""
+    """Pick the first usable numeric score from a list of possible fields."""
     for v in values:
-        if isinstance(v, int):
-            return v
-        if isinstance(v, str) and v.isdigit():
+        if isinstance(v, bool):
+            # avoid treating True/False as 1/0
+            continue
+        if isinstance(v, (int, float)):
             return int(v)
+        if isinstance(v, str):
+            s = v.strip()
+            if s.isdigit():
+                return int(s)
+            # handle strings like "21.0"
+            try:
+                return int(float(s))
+            except ValueError:
+                continue
     return 0
 
 
