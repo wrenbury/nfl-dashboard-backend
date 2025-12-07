@@ -131,6 +131,11 @@ export default function Game() {
   const s = data.summary;
   const competitors = Array.isArray(s.competitors) ? s.competitors : [];
 
+  const homeComp = competitors.find((c: any) => c.homeAway === "home");
+  const awayComp = competitors.find((c: any) => c.homeAway === "away");
+  const homeName = homeComp?.team?.name ?? "Home";
+  const awayName = awayComp?.team?.name ?? "Away";
+
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -162,7 +167,11 @@ export default function Game() {
         </div>
 
         <div className="space-y-4">
-          <WinProb winProbability={data.winProbability} />
+          <WinProb
+            winProbability={data.winProbability}
+            homeTeam={homeName}
+            awayTeam={awayName}
+          />
         </div>
       </div>
 
