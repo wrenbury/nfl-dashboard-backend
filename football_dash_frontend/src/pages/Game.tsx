@@ -10,11 +10,31 @@ const fetcher = (u: string) => fetch(u).then((r) => r.json());
 
 export default function Game() {
   const { sport = "college-football", id = "" } = useParams();
-  const { data } = useSWR(API.game(sport as any, id), fetcher);
+  const isNfl = sport === "nfl";
+
+  // For now, the detailed bento view is only wired up for NFL.
+  const { data } = useSWR(
+    isNfl && id ? API.game("nfl", id) : null,
+    fetcher
+  );
+
+  if (!isNfl) {
+    return (
+      <div className="p-6 space-y-4">
+        <Link to="/cfb" className="text-sm opacity-70 hover:underline">
+          ← Back to CFB scoreboard
+        </Link>
+        <div className="text-sm opacity-80">
+          Detailed game view is currently available for NFL games only.
+        </div>
+      </div>
+    );
+  }
 
   if (!data) return <div className="p-6">Loading…</div>;
 
   const s = data.summary;
+  const competitors = Array.isArray(s.competitors) ? s.competitors : [];
 
   return (
     <div className="space-y-4">
@@ -23,7 +43,7 @@ export default function Game() {
           ← Back to scoreboard
         </Link>
         <div className="text-xs opacity-60">
-          {s.startTime} • {s.status.type.detail}
+          {s.startTime} • {s.status}
         </div>
       </div>
 
@@ -31,20 +51,21 @@ export default function Game() {
         {/* Score header / teams */}
         <div className="card">
           <div className="flex items-center justify-between gap-4 mb-4">
-            <Team t={s.competitors[0]} />
+            {competitors[0] && <Team t={competitors[0]} />}
             <div className="text-3xl font-bold">
-              {s.competitors[0].score} - {s.competitors[1].score}
+              {competitors[0]?.score ?? "-"} - {competitors[1]?.score ?? "-"}
             </div>
-            <Team t={s.competitors[1]} />
+            {competitors[1] && <Team t={competitors[1]} />}
           </div>
-          <div className="text-xs opacity-60 flex justify-between">
-            <span>{s.venue.fullName}</span>
-            <span>{s.status.type.description}</span>
-          </div>
+          {s.venue && (
+            <div className="text-xs opacity-60">Venue: {s.venue}</div>
+          )}
         </div>
 
-        {/* Win probability card */}
-        <WinProb winProbability={data.winProbability} />
+        {/* Simple meta / win prob */}
+        <div className="space-y-4">
+          <WinProb winProbability={data.winProbability} />
+        </div>
       </div>
 
       {/* Bento grid */}
@@ -64,12 +85,12 @@ export default function Game() {
 function Team({ t }: any) {
   return (
     <div className="flex items-center gap-3">
-      {t.team.logo && (
+      {t.team?.logo && (
         <img src={t.team.logo} className="w-10 h-10 rounded-full" />
       )}
       <div>
-        <div className="font-semibold">{t.team.name}</div>
-        <div className="text-xs opacity-60">{t.team.record || ""}</div>
+        <div className="font-semibold">{t.team?.name}</div>
+        <div className="text-xs opacity-60">{t.team?.record || ""}</div>
       </div>
     </div>
   );
