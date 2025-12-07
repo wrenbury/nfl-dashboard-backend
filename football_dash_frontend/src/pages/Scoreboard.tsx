@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import GameList from "../components/GameList";
-import { API } from "../../lib/api";
+import { API } from "../api";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 

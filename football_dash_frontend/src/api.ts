@@ -171,3 +171,22 @@ export async function fetchCfbScoreboard(
   const data = (await res.json()) as CfbScoreboardResponse;
   return data;
 }
+
+
+// Simple URL builder used by legacy SWR-based pages (Scoreboard, Game).
+export const API = {
+  scoreboard(
+    sport: "nfl" | "college-football",
+    opts: { date?: string; week?: number } = {}
+  ): string {
+    const params = new URLSearchParams();
+    if (opts.date) params.set("date", opts.date);
+    if (typeof opts.week === "number") params.set("week", String(opts.week));
+    const qs = params.toString();
+    return qs ? `/api/scoreboard/${sport}?${qs}` : `/api/scoreboard/${sport}`;
+  },
+
+  game(sport: "nfl" | "college-football", eventId: string): string {
+    return `/api/game/${sport}/${encodeURIComponent(eventId)}`;
+  },
+};
