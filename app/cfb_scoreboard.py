@@ -35,7 +35,12 @@ def _cfbd_headers() -> Dict[str, str]:
     headers: Dict[str, str] = {"accept": "application/json"}
     api_key = os.getenv(CFBD_API_KEY_ENV)
     if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
+        headers = 
+            {"Authorization": f"Bearer {CFBD_API_KEY}",  # or settings.cfbd_api_key, etc.
+            "Accept": "application/json",
+            }
+}
+
     return headers
 
 
