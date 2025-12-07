@@ -1,0 +1,8 @@
+import GameCard from "./GameCard";
+export default function GameList({ games }:{ games:any[] }) {
+  return (
+    <div className="grid gap-3">
+      {games.map(g => <GameCard key={g.id} g={g} />)}
+    </div>
+  )
+}
