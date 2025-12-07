@@ -150,7 +150,10 @@ export default function Game() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-[2fr,1fr] gap-4">
+// football_dash_frontend/src/pages/Game.tsx
+// (only the grid that holds the score header + win prob)
+
+      <div className="grid md:grid-cols-[2fr,1fr] gap-4 items-start">
         <div className="card">
           <div className="flex items-center justify-between gap-4 mb-4">
             {competitors[0] && <Team t={competitors[0]} />}
