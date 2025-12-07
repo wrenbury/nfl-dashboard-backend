@@ -1,3 +1,5 @@
+// football_dash_frontend/src/components/ScoreboardHeader.tsx
+
 import { Link, useLocation } from "react-router-dom";
 
 export default function ScoreboardHeader() {
