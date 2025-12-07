@@ -23,7 +23,8 @@ from fastapi.responses import JSONResponse
 router = APIRouter()
 
 CFBD_BASE_URL = "https://api.collegefootballdata.com"
-CFBD_API_KEY_ENV = "CFBD_TOKEN"
+CFBD_API_KEY_ENV = "CFBD_API_KEY"
+CFBD_ALT_ENV = "CFBD_TOKEN"
 
 
 StatusState = str  # "pre" | "in" | "post" | "halftime" | "final" | "delayed"
@@ -31,13 +32,16 @@ StatusState = str  # "pre" | "in" | "post" | "halftime" | "final" | "delayed"
 
 def _cfbd_headers() -> Dict[str, str]:
     """
-    Build headers for CollegeFootballData API calls, including the API key
-    if present in the environment (CFBD_API_KEY) or via our Settings (CFBD_TOKEN).
+    Build headers for CollegeFootballData API calls.
     """
     headers: Dict[str, str] = {"accept": "application/json"}
-    api_key = os.getenv(CFBD_API_KEY_ENV) or settings.CFBD_TOKEN
+
+    api_key = (
+        os.getenv(CFBD_API_KEY_ENV)
+        or os.getenv(CFBD_ALT_ENV)
+        or settings.CFBD_TOKEN
+    )
     if api_key:
-        # CollegeFootballData expects a Bearer token in the Authorization header.
         headers["Authorization"] = f"Bearer {api_key}"
     return headers
 
