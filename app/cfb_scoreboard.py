@@ -136,6 +136,60 @@ def _get_rankings_for_week(year: int, week: int) -> Dict[str, int]:
 
     return ranks_by_school
 
+def _get_week_for_date(year: int, date_yyyymmdd: str) -> Optional[int]:
+    """
+    Use the CFBD /calendar endpoint to map a calendar date (YYYYMMDD)
+    to a season week number for the given year.
+
+    If we can't determine the week (no matching range, bad format, etc.),
+    we return None and let the caller decide how to handle it.
+    """
+    if len(date_yyyymmdd) != 8 or not date_yyyymmdd.isdigit():
+        return None
+
+    target = _Date(
+        int(date_yyyymmdd[0:4]),
+        int(date_yyyymmdd[4:6]),
+        int(date_yyyymmdd[6:8]),
+    )
+
+    raw = _cfbd_get("/calendar", {"year": year})
+
+    # CFBD /calendar typically returns a list of dicts like:
+    #   { "season": 2024, "week": 1, "seasonType": "regular",
+    #     "startDate": "2024-08-24", "endDate": "2024-08-31", ... }
+    if not isinstance(raw, list):
+        return None
+
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+
+        # Some variants may use "season" or "year" – accept either if present.
+        season_val = item.get("season", item.get("year"))
+        if season_val is not None and int(season_val) != year:
+            continue
+
+        week = item.get("week")
+        if week is None:
+            continue
+
+        start_raw = item.get("startDate") or item.get("firstGameStart")
+        end_raw = item.get("endDate") or item.get("lastGameStart")
+        if not start_raw or not end_raw:
+            continue
+
+        try:
+            start = _Date.fromisoformat(str(start_raw).split("T")[0])
+            end = _Date.fromisoformat(str(end_raw).split("T")[0])
+        except ValueError:
+            continue
+
+        if start <= target <= end:
+            return int(week)
+
+    return None
+
 
 # ---------------------------------------------------------------------------
 # Normalization helpers
@@ -293,20 +347,59 @@ def _map_cfb_game(
 
 @router.get("/cfb/scoreboard")
 def get_cfb_scoreboard(
-    year: int = Query(..., ge=2000, le=2100, description="Season year"),
-    week: int = Query(..., ge=1, le=20, description="Week number"),
+    year: Optional[int] = Query(
+        None,
+        ge=2000,
+        le=2100,
+        description="Season year (optional if date is provided)",
+    ),
+    week: Optional[int] = Query(
+        None,
+        ge=1,
+        le=20,
+        description="Week number (optional if date is provided)",
+    ),
+    date: Optional[str] = Query(
+        None,
+        pattern=r"^\d{8}$",
+        description=(
+            "Optional calendar date in YYYYMMDD; "
+            "used to infer year/week via CFBD /calendar."
+        ),
+    ),
 ):
     """
-    College Football scoreboard for a given year/week using the CollegeFootballData API.
+    College Football scoreboard using the CollegeFootballData API.
+
+    You can either:
+    - supply an explicit `year` and `week`, or
+    - supply a `date` (YYYYMMDD) and let the server derive the week from the
+      CFBD /calendar endpoint.
 
     Returns:
         {
           "season": number,
-          "week": number,
+          "week": number | null,
           "games": CfbScoreboardGame[]
         }
     """
     try:
+        # Derive year/week from date if needed
+        if date:
+            derived_year = int(date[0:4])
+            if year is None:
+                year = derived_year
+            if week is None:
+                week = _get_week_for_date(year, date)
+
+        # If after all of the above we still don't have both, treat this as
+        # "no games" instead of an error so the UI can show a friendly message.
+        if year is None or week is None:
+            return JSONResponse(
+                status_code=200,
+                content={"season": year or 0, "week": week, "games": []},
+            )
+
         games_raw = _cfbd_get(
             "/games",
             {
@@ -322,30 +415,40 @@ def get_cfb_scoreboard(
         teams_meta = _get_teams_for_year(year)
         ranks_meta = _get_rankings_for_week(year, week)
 
-        games: List[Dict[str, Any]] = []
+        games_out: List[Dict[str, Any]] = []
         for g in games_raw:
-            if not isinstance(g, dict):
-                continue
             try:
-                games.append(_map_cfb_game(g, teams_meta, ranks_meta))
+                mapped = _map_game_to_scoreboard(g, teams_meta, ranks_meta)
             except Exception:
-                # Don't let a single bad game blow up the entire response.
+                # One bad game should not kill the whole board.
                 continue
+            games_out.append(mapped)
 
-        payload = {
-            "season": year,
-            "week": week,
-            "games": games,
-        }
-        return JSONResponse(payload)
+        return JSONResponse(
+            status_code=200,
+            content={
+                "season": year,
+                "week": week,
+                "games": games_out,
+            },
+        )
 
     except RuntimeError as exc:
-        # Upstream / JSON error -> 502
+        msg = str(exc)
+        # If CFBD has no data yet for that year/week and returns 4xx, surface this
+        # as an "empty board" instead of a hard error so the UI shows a friendly message.
+        if "status 404" in msg or "status 400" in msg:
+            return JSONResponse(
+                status_code=200,
+                content={"season": year or 0, "week": week, "games": []},
+            )
+
+        # Other upstream / JSON errors -> 502
         return JSONResponse(
             status_code=502,
             content={
                 "error": "CollegeFootballData upstream error",
-                "message": str(exc),
+                "message": msg,
                 "provider": "CollegeFootballData API",
             },
         )
