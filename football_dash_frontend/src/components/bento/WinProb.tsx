@@ -1,4 +1,5 @@
 // football_dash_frontend/src/components/bento/WinProb.tsx
+// (full file, with Y-axis fixed to 0–100 and clean tick labels)
 
 import {
   ResponsiveContainer,
@@ -41,7 +42,6 @@ function normalizeWinProb(raw: any): WinProbPoint[] {
 
     if (rawHome == null || !isFinite(rawHome)) continue;
 
-    // Handle both 0–1 and 0–100 inputs
     const asPct = rawHome >= 0 && rawHome <= 1 ? rawHome * 100 : rawHome;
     const homePct = Math.max(0, Math.min(100, asPct));
 
@@ -118,7 +118,7 @@ export default function WinProb({
         </div>
       </div>
 
-      {/* Explicit fixed height so Recharts always renders */}
+      {/* Fixed height so Recharts always renders */}
       <div className="w-full h-40">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -130,10 +130,10 @@ export default function WinProb({
               vertical={false}
               strokeOpacity={0.2}
             />
-            {/* hide axis line; we'll show static quarter labels below */}
             <XAxis dataKey="idx" hide />
             <YAxis
               domain={[0, 100]}
+              ticks={[0, 25, 50, 75, 100]}
               tickFormatter={(v) => `${v}%`}
               tickLine={false}
               axisLine={false}
@@ -182,7 +182,6 @@ export default function WinProb({
         </ResponsiveContainer>
       </div>
 
-      {/* Static quarter labels under the chart */}
       <div className="mt-1 flex justify-between text-[10px] opacity-50 px-1">
         <span>1st</span>
         <span>2nd</span>
