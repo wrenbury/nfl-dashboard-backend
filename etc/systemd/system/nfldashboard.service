@@ -1,0 +1,19 @@
+[Unit]
+Description=NFL & CFB Dashboard Backend
+After=network.target
+
+[Service]
+WorkingDirectory=/home/kenton/nfl-dashboard-backend
+ExecStart=/home/kenton/nfl-dashboard-backend/venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Environment variables
+Environment="ESPN_BASE=https://site.api.espn.com/apis/site/v2/sports/football"
+Environment="CFBD_TOKEN=gaXcbzCOvKIe4B0dETF+6znjGtb6U+rODm6d1LvoV/VMz+T4p9huzB6hvajKHwNr"
+# Optional: point explicitly to v2 API host
+# Environment="CFBD_BASE=https://api.collegefootballdata.com"
+
+Restart=always
+User=kenton
+
+[Install]
+WantedBy=multi-user.target
