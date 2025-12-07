@@ -117,11 +117,19 @@ export default function WinProb({
         </div>
       </div>
 
-      <div className="w-full h-40">
+      {/* Chart + custom Y labels */}
+      <div className="relative w-full h-40">
+        {/* Custom Y-axis labels: 100 / 50 / 100 like ESPN */}
+        <div className="absolute inset-y-1 left-0 flex flex-col justify-between text-[10px] opacity-50 pointer-events-none">
+          <span>100%</span>
+          <span>50%</span>
+          <span>100%</span>
+        </div>
+
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
-            margin={{ top: 8, right: 8, left: 0, bottom: 4 }}
+            margin={{ top: 8, right: 8, left: 24, bottom: 4 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
@@ -129,16 +137,8 @@ export default function WinProb({
               strokeOpacity={0.2}
             />
             <XAxis dataKey="idx" hide />
-            <YAxis
-              domain={[0, 100]}
-              ticks={[0, 50, 100]}
-              tickFormatter={(_, index) =>
-                index === 1 ? "50%" : "100%"
-              }
-              tickLine={false}
-              axisLine={false}
-              width={36}
-            />
+            {/* Keep Y domain but hide native ticks; we draw our own labels */}
+            <YAxis domain={[0, 100]} tick={false} axisLine={false} />
             <ReferenceLine
               y={50}
               stroke="#ffffff"
