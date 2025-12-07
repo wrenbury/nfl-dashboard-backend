@@ -1,7 +1,33 @@
 // football_dash_frontend/src/api.ts
 
 // Central place to build URLs for the FastAPI backend.
-// We keep this tiny and focused so the rest of the app just calls API.*.
+//
+// In dev (Vite @ :5173) we bypass the Vite proxy and talk directly
+// to FastAPI on :8000 to avoid proxy HTML/text errors.
+// In "prod" (served behind the same origin as the backend) we fall
+// back to relative paths (API_BASE = "").
+
+const DEV_BACKEND_PORT = "8000";
+
+function getApiBase(): string {
+  if (typeof window === "undefined") return "";
+
+  const { protocol, hostname, port } = window.location;
+
+  // Vite dev server default
+  if (port === "5173") {
+    return `${protocol}//${hostname}:${DEV_BACKEND_PORT}`;
+  }
+
+  // Same-origin in prod / on the Pi; use relative URLs.
+  return "";
+}
+
+const API_BASE = getApiBase();
+
+function buildUrl(path: string): string {
+  return `${API_BASE}${path}`;
+}
 
 export const API = {
   /**
@@ -23,7 +49,8 @@ export const API = {
     if (opts.date) params.set("date", opts.date);
     if (typeof opts.week === "number") params.set("week", String(opts.week));
     const qs = params.toString();
-    return qs ? `/api/scoreboard/${sport}?${qs}` : `/api/scoreboard/${sport}`;
+    const path = `/api/scoreboard/${sport}${qs ? `?${qs}` : ""}`;
+    return buildUrl(path);
   },
 
   /**
@@ -34,6 +61,7 @@ export const API = {
    *   - /api/game/college-football/{event_id}  (reserved for future CFBD wiring)
    */
   game(sport: "nfl" | "college-football", eventId: string): string {
-    return `/api/game/${sport}/${encodeURIComponent(eventId)}`;
+    const path = `/api/game/${sport}/${encodeURIComponent(eventId)}`;
+    return buildUrl(path);
   },
 };
