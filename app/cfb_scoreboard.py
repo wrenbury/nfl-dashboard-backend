@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple
+from datetime import date as _Date  # <-- add this line
 
 import httpx
-from .config import settings
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
