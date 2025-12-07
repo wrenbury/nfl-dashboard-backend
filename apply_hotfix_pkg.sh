@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-cd backend
-
-# 1) ensure packages are real Python packages
-touch app/__init__.py
+echo "[1/5] Ensure package structure under ./app"
 mkdir -p app/{api,clients,models,services,utils}
-touch app/api/__init__.py
-touch app/clients/__init__.py
-touch app/models/__init__.py
-touch app/services/__init__.py
-touch app/utils/__init__.py
+touch app/__init__.py app/api/__init__.py app/clients/__init__.py app/models/__init__.py app/services/__init__.py app/utils/__init__.py
 
-# 2) robust pyproject for editable install
+echo "[2/5] Write/repair pyproject.toml at repo root (setuptools + packages=['app'])"
 cat > pyproject.toml <<'TOML'
 [build-system]
 requires = ["setuptools>=68", "wheel"]
@@ -37,13 +30,19 @@ packages = ["app"]
 package-dir = {"" = "."}
 
 [tool.pytest.ini_options]
-testpaths = ["backend/tests"]
+testpaths = ["tests"]
 TOML
 
-# 3) pytest config (keep quiet output)
-cat > pytest.ini <<'INI'
-[pytest]
-addopts = -q
-INI
+echo "[3/5] Ensure pytest.ini (quiet output)"
+printf "[pytest]\naddopts = -q\n" > pytest.ini
 
-echo "Hotfix applied."
+echo "[4/5] Clean .DS_Store and __pycache__"
+find . -name ".DS_Store" -delete || true
+find . -name "__pycache__" -type d -exec rm -rf {} + || true
+
+echo "[5/5] Editable install + test collection"
+python -m venv .venv && source .venv/bin/activate
+pip install -e ".[dev]"
+pytest --collect-only -q || true
+
+echo "Hotfix complete. To run tests: source .venv/bin/activate && pytest -q"
