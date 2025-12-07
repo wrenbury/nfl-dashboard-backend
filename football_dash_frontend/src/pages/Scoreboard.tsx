@@ -1,16 +1,43 @@
+// football_dash_frontend/src/pages/Scoreboard.tsx
+
 import useSWR from "swr";
 import GameList from "../components/GameList";
 import { API } from "../api";
 
+type Sport = "nfl" | "college-football";
+
+type Props = {
+  sport: Sport;
+};
+
 const fetcher = async (url: string) => {
   const res = await fetch(url);
-  // Log and throw on non-2xx so SWR shows an error *and* we can debug in the console
-  if (!res.ok) {
-    const text = await res.text();
-    console.error("Scoreboard fetch error:", res.status, text);
-    throw new Error(`HTTP ${res.status}`);
+
+  // Always read the raw text so we can safely parse / log
+  const text = await res.text();
+  let data: any = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      // If backend ever returns non-JSON (proxy error, HTML, etc.), surface that clearly.
+      console.error("Scoreboard JSON parse error:", err, text);
+      throw new Error("Invalid JSON received from backend");
+    }
   }
-  return res.json();
+
+  if (!res.ok) {
+    const detail =
+      (data && (data.detail || data.error || data.message)) || text || "";
+    const msg = `HTTP ${res.status}${
+      detail ? ` – ${String(detail).slice(0, 200)}` : ""
+    }`;
+    console.error("Scoreboard HTTP error:", msg);
+    throw new Error(msg);
+  }
+
+  return data;
 };
 
 // Use LOCAL time instead of UTC so we don't roll over to "tomorrow" at night.
@@ -22,17 +49,18 @@ function getLocalYyyyMmDd(): string {
   return `${y}${m}${d}`;
 }
 
-export default function Scoreboard({
-  sport,
-}: {
-  sport: "nfl" | "college-football";
-}) {
+export default function Scoreboard({ sport }: Props) {
   const date = getLocalYyyyMmDd();
 
-  // ✅ Unified backend: /api/scoreboard/{sport}?date=YYYYMMDD
+  // Unified backend: /api/scoreboard/{sport}?date=YYYYMMDD
+  // NFL -> ESPN, CFB -> CollegeFootballData (implemented in app.services.scoreboard)
   const endpoint = API.scoreboard(sport, { date });
 
-  const { data, error, isLoading } = useSWR(endpoint, fetcher, {
+  const {
+    data,
+    error,
+    isLoading,
+  } = useSWR(endpoint, fetcher, {
     revalidateOnFocus: false,
   });
 
