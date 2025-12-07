@@ -1,8 +1,10 @@
 from typing import List, Optional
+from datetime import datetime, timezone
+
 from ..models.schemas import *
 from ..clients import espn, cfbd
 from ..cfb_scoreboard import _get_week_for_date, _normalize_cfb_status
-from datetime import datetime, timezone
+
 
 def _map_competitor(raw) -> Competitor:
     t = raw["team"]
@@ -28,6 +30,7 @@ def _map_competitor(raw) -> Competitor:
         score=int(raw["score"]) if (s := raw.get("score")) and str(s).isdigit() else None,
     )
 
+
 def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
     events = data.get("events", [])
     out: List[GameSummary] = []
@@ -42,20 +45,23 @@ def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
                 startTime=e.get("date"),
                 status=status,
                 venue=venue,
-                competitors=[_map_competitor(c) for c in sorted(comp, key=lambda x: x["homeAway"])],
+                competitors=[
+                    _map_competitor(c)
+                    for c in sorted(comp, key=lambda x: x["homeAway"])
+                ],
             )
         )
     return out
 
-def get_scoreboard(sport: Sport, date: str | None, week: int | None):
-    raw = espn.scoreboard(sport, date=date, week=week)
-    return parse_scoreboard(sport, raw)
 
 # ---------------------------------------------------------------------------
 # College Football scoreboard via CollegeFootballData
 # ---------------------------------------------------------------------------
 
-def _build_cfb_scoreboard_from_cfbd(date: str | None, week: int | None) -> List[GameSummary]:
+def _build_cfb_scoreboard_from_cfbd(
+    date: str | None,
+    week: int | None,
+) -> List[GameSummary]:
     """Build a GameSummary-style scoreboard for college football using CFBD.
 
     This keeps the same GameSummary shape used for NFL so the frontend can treat
@@ -158,8 +164,9 @@ def _build_cfb_scoreboard_from_cfbd(date: str | None, week: int | None) -> List[
 
     return out
 
-# Override the original get_scoreboard to route NFL -> ESPN, CFB -> CFBD.
+
 def get_scoreboard(sport: Sport, date: str | None, week: int | None):
+    """Route NFL to ESPN, CFB to CFBD."""
     if sport == "nfl":
         raw = espn.scoreboard(sport, date=date, week=week)
         return parse_scoreboard(sport, raw)
@@ -169,4 +176,3 @@ def get_scoreboard(sport: Sport, date: str | None, week: int | None):
 
     # Unknown sport -> empty board (defensive default)
     return []
-
