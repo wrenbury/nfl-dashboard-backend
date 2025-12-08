@@ -1,5 +1,3 @@
-// football_dash_frontend/src/components/bento/WinProb.tsx
-
 import {
   ResponsiveContainer,
   LineChart,
@@ -18,11 +16,12 @@ type Props = {
 };
 
 type WinProbPoint = {
-  idx: number;
-  home: number; // 0–100
-  quarter?: string;
+  t: number;        // 0.0 – 1.0, fraction of game elapsed (regulation)
+  home: number;     // 0–100%
   periodNum?: number;
 };
+
+const TOTAL_REG_SECONDS = 60 * 60; // 60 minutes, ignore OT for now
 
 function normalizeWinProb(raw: any): WinProbPoint[] {
   if (!Array.isArray(raw)) return [];
@@ -32,44 +31,62 @@ function normalizeWinProb(raw: any): WinProbPoint[] {
   for (let i = 0; i < raw.length; i++) {
     const wp = raw[i] || {};
 
+    // --- win % ---
     let rawHome: number | null = null;
-
     if (typeof wp.homeWinPercentage === "number") {
       rawHome = wp.homeWinPercentage;
     } else if (typeof wp.homeWinProb === "number") {
       rawHome = wp.homeWinProb;
     }
-
     if (rawHome == null || !isFinite(rawHome)) continue;
 
-    const asPct = rawHome >= 0 && rawHome <= 1 ? rawHome * 100 : rawHome;
+    const asPct =
+      rawHome >= 0 && rawHome <= 1 ? rawHome * 100 : rawHome;
     const homePct = Math.max(0, Math.min(100, asPct));
 
-    let quarterLabel: string | undefined;
+    // --- period / quarter ---
     let periodNum: number | undefined;
-
     const p =
       typeof wp.period === "number"
         ? wp.period
         : typeof wp.period?.number === "number"
         ? wp.period.number
         : undefined;
-
     if (typeof p === "number") {
       periodNum = p;
-      if (p >= 1 && p <= 4) {
-        const labels = ["", "1st", "2nd", "3rd", "4th"];
-        quarterLabel = labels[p] ?? `${p}th`;
-      } else if (p > 4) {
-        quarterLabel = "OT";
-      }
+    }
+
+    // --- time: convert seconds remaining to fraction elapsed ---
+    let secondsLeft: number | null = null;
+    if (typeof wp.secondsLeft === "number") {
+      secondsLeft = wp.secondsLeft;
+    } else if (typeof wp.secondsRemaining === "number") {
+      secondsLeft = wp.secondsRemaining;
+    }
+
+    let t: number;
+    if (secondsLeft != null && isFinite(secondsLeft)) {
+      const clamped = Math.max(0, Math.min(TOTAL_REG_SECONDS, secondsLeft));
+      t = 1 - clamped / TOTAL_REG_SECONDS; // 0 at start, 1 at end
+    } else {
+      // Fallback: evenly spaced by index if we don't have timing info
+      t = i; // We'll renormalize below
     }
 
     points.push({
-      idx: i,
+      t,
       home: Math.round(homePct),
-      quarter: quarterLabel,
       periodNum,
+    });
+  }
+
+  if (!points.length) return points;
+
+  // If we had to use index-based t, normalize them into 0–1 range.
+  const tMax = points.reduce((m, p) => Math.max(m, p.t), 0);
+  if (tMax > 1) {
+    points.forEach((p) => {
+      p.t = p.t / tMax;
     });
   }
 
@@ -105,50 +122,11 @@ export default function WinProb({
   const homePctLabel = formatPercent(latest.home);
   const awayPctLabel = formatPercent(100 - latest.home);
 
-  // --- Quarter tick positions (match ESPN-style spacing) ---
-
-  // Build min/max index per period from actual data
-  const segments: Record<number, { min: number; max: number }> = {};
-  for (const p of data) {
-    if (!p.periodNum || p.periodNum < 1 || p.periodNum > 4) continue;
-    const seg = segments[p.periodNum] ?? { min: p.idx, max: p.idx };
-    seg.min = Math.min(seg.min, p.idx);
-    seg.max = Math.max(seg.max, p.idx);
-    segments[p.periodNum] = seg;
-  }
-
-  const lastIdx = data[data.length - 1].idx;
-  const labelsByPeriod: Record<number, string> = {
-    1: "1st",
-    2: "2nd",
-    3: "3rd",
-    4: "4th",
-  };
-
-  const quarterTicks: number[] = [];
-  const quarterTickLabels: string[] = [];
-
-  const maxPeriodInData = Object.keys(segments)
-    .map((k) => Number(k))
-    .reduce((m, v) => Math.max(m, v), 0);
-
-  if (maxPeriodInData) {
-    // Use real segment midpoints for the periods we actually have
-    for (let p = 1; p <= maxPeriodInData; p++) {
-      const seg = segments[p];
-      if (!seg) continue;
-      const mid = (seg.min + seg.max) / 2;
-      quarterTicks.push(mid);
-      quarterTickLabels.push(labelsByPeriod[p]);
-    }
-  } else {
-    // Fallback: evenly spaced quarters across the data range
-    const step = lastIdx / 4;
-    for (let p = 1; p <= 4; p++) {
-      quarterTicks.push(step * p - step / 2);
-      quarterTickLabels.push(labelsByPeriod[p]);
-    }
-  }
+  // Fixed “ESPN-style” quarter ticks at midpoints of each quarter.
+  // 4 quarters => 60 minutes => quarters at 0–15–30–45–60 min.
+  // Midpoints (as fraction of game): 7.5, 22.5, 37.5, 52.5 minutes.
+  const quarterTicks = [0.125, 0.375, 0.625, 0.875];
+  const quarterLabels = ["1st", "2nd", "3rd", "4th"];
 
   return (
     <div className="card flex flex-col">
@@ -170,19 +148,11 @@ export default function WinProb({
         </div>
       </div>
 
-      {/* Chart with custom Y labels and ESPN-like quarter spacing */}
-      <div className="relative w-full h-40">
-        {/* Custom Y-axis labels: 100 / 50 / 100 like ESPN */}
-        <div className="absolute inset-y-1 left-0 flex flex-col justify-between text-[10px] opacity-50 pointer-events-none">
-          <span>100%</span>
-          <span>50%</span>
-          <span>100%</span>
-        </div>
-
+      <div className="w-full h-40">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={data}
-            margin={{ top: 8, right: 8, left: 24, bottom: 20 }}
+            margin={{ top: 8, right: 8, left: 8, bottom: 20 }}
           >
             <CartesianGrid
               strokeDasharray="3 3"
@@ -190,14 +160,27 @@ export default function WinProb({
               strokeOpacity={0.2}
             />
             <XAxis
-              dataKey="idx"
+              dataKey="t"
+              type="number"
+              domain={[0, 1]}
               ticks={quarterTicks}
               tickLine={false}
               axisLine={false}
-              tickFormatter={(_, index) => quarterTickLabels[index] ?? ""}
+              tickFormatter={(value: number) => {
+                const i = quarterTicks.findIndex(
+                  (tick) => Math.abs(tick - value) < 0.001
+                );
+                return quarterLabels[i] ?? "";
+              }}
             />
-            {/* Keep Y domain but hide native ticks; we draw our own labels */}
-            <YAxis domain={[0, 100]} tick={false} axisLine={false} />
+            <YAxis
+              domain={[0, 100]}
+              ticks={[0, 25, 50, 75, 100]}
+              tickFormatter={(v) => `${v}%`}
+              tickLine={false}
+              axisLine={false}
+              width={40}
+            />
             <ReferenceLine
               y={50}
               stroke="#ffffff"
@@ -211,8 +194,11 @@ export default function WinProb({
                 const p = payload[0].payload as WinProbPoint;
                 return (
                   <div className="rounded-md bg-[#050608] border border-[#262b33] px-3 py-2 text-xs">
-                    {p.quarter && (
-                      <div className="mb-1 opacity-70">{p.quarter}</div>
+                    {p.periodNum && (
+                      <div className="mb-1 opacity-70">
+                        {["", "1st", "2nd", "3rd", "4th"][p.periodNum] ??
+                          `Q${p.periodNum}`}
+                      </div>
                     )}
                     <div className="flex flex-col gap-0.5">
                       <div>
