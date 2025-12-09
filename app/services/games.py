@@ -13,39 +13,39 @@ from ..clients import espn
 from .scoreboard import _map_competitor
 
 
-def _safe_get(d: Dict[str, Any], *keys: str, default=None):
-    cur: Any = d
-    for k in keys:
-        if not isinstance(cur, dict):
-            return default
-        cur = cur.get(k)
-    return cur if cur is not None else default
-
-
 def game_details(sport: Sport, event_id: str) -> GameDetails:
     """
     Build a rich GameDetails payload for a single event, powered by ESPN summary.
 
-    This is used by the NFL game page and must remain backwards compatible
-    with existing GameDetails consumers.
+    This must remain backwards compatible with existing GameDetails consumers:
+    - summary
+    - boxscore
+    - teamStats
+    - plays
+    - winProbability
+
+    New:
+    - situation (clock, period, down & distance)
     """
     raw: Dict[str, Any] = espn.summary(sport, event_id)
 
-    header = raw.get("header") or {}
-    competitions = header.get("competitions") or []
-    comp0: Dict[str, Any] = competitions[0] if competitions else {}
+    header = raw.get("header", {}) or {}
+    competitions = header.get("competitions") or [{}]
+    comp0: Dict[str, Any] = competitions[0] or {}
+
     raw_competitors = comp0.get("competitors") or []
 
     # --- High-level game summary -------------------------------------------------
-    # Prefer ESPN's shortDetail (e.g. "1:10 - 2nd") when available; otherwise fall back
-    # to the more generic description (e.g. "In Progress").
     status_type = (comp0.get("status") or {}).get("type") or {}
-    status_short = status_type.get("shortDetail")
-    status_desc = status_type.get("description") or ""
-    status = status_short or status_desc or ""
+    # Prefer shortDetail (e.g. "13:10 - 3rd") then description (e.g. "In Progress")
+    status = (
+        status_type.get("shortDetail")
+        or status_type.get("description")
+        or ""
+    )
 
     summary = GameSummary(
-        id=str(header.get("id") or event_id),
+        id=header.get("id") or str(event_id),
         sport=sport,
         startTime=comp0.get("date") or header.get("date") or "",
         status=status,
@@ -53,57 +53,81 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         competitors=[_map_competitor(c) for c in raw_competitors],
     )
 
-    # --- Boxscore: player stats --------------------------------------------------
-    boxscore_categories: List[BoxScoreCategory] = []
+    # --- Boxscore: player stats (unchanged logic so Box Score stays working) ----
     boxscore = raw.get("boxscore") or {}
+    player_sides = boxscore.get("players") or []
 
-    for team_block in boxscore.get("players") or []:
-        title = (
-            (team_block.get("team") or {}).get("displayName")
-            or team_block.get("name")
-            or "Players"
+    boxscore_categories: List[BoxScoreCategory] = []
+
+    for side in player_sides:
+        team = side.get("team") or {}
+        team_name = (
+            team.get("displayName")
+            or team.get("name")
+            or team.get("shortDisplayName")
+            or ""
         )
-        rows: List[List[str]] = []
 
-        for stat_group in team_block.get("statistics") or []:
-            for stat in stat_group.get("stats") or []:
-                label = stat.get("label") or ""
-                val = stat.get("displayValue") or ""
-                if label or val:
-                    rows.append([label, val])
+        for cat in side.get("statistics") or []:
+            # ESPN usually uses `name` but we fall back to any reasonable label.
+            cat_title = (
+                cat.get("name")
+                or cat.get("displayName")
+                or cat.get("shortDisplayName")
+                or ""
+            )
 
-        if rows:
-            boxscore_categories.append(BoxScoreCategory(title=title, rows=rows))
+            rows: List[List[str]] = []
+            for athlete in cat.get("athletes") or []:
+                athlete_info = athlete.get("athlete") or {}
+                label = (
+                    athlete_info.get("displayName")
+                    or athlete_info.get("shortName")
+                    or ""
+                )
+                stats = athlete.get("stats") or []
+                row = [label] + [str(s) for s in stats]
+                rows.append(row)
 
-    # --- Team stats --------------------------------------------------------------
+            if rows:
+                title = f"{team_name} {cat_title.title()}".strip()
+                boxscore_categories.append(
+                    BoxScoreCategory(title=title, rows=rows)
+                )
+
+    # --- Team stats (aggregate, unchanged) --------------------------------------
     team_stats_categories: List[BoxScoreCategory] = []
-
-    for team_stat in boxscore.get("teams") or []:
-        name = (team_stat.get("team") or {}).get("displayName") or "Team"
-        rows: List[List[str]] = []
-
-        for s in team_stat.get("statistics") or []:
-            label = s.get("label") or ""
-            val = s.get("displayValue") or ""
-            if label or val:
-                rows.append([label, val])
-
+    for stat in boxscore.get("teams") or []:
+        team = stat.get("team") or {}
+        name = (
+            team.get("displayName")
+            or team.get("name")
+            or team.get("shortDisplayName")
+            or "Team"
+        )
+        rows = [
+            [s.get("label", ""), s.get("displayValue", "")]
+            for s in (stat.get("statistics") or [])
+        ]
         if rows:
             team_stats_categories.append(
                 BoxScoreCategory(title=f"{name} Team Stats", rows=rows)
             )
 
-    # --- Situation: clock + down & distance -------------------------------------
+    # --- Situation: clock + period + down & distance ----------------------------
     raw_situation = comp0.get("situation") or {}
-    situation = None
+    situation: GameSituation | None = None
     if raw_situation:
-        period = (
-            _safe_get(comp0, "status", "period")
-            or _safe_get(header, "status", "period")
-        )
+        # period can live under competition.status.period or header.status.period
+        status_period = (comp0.get("status") or {}).get("period")
+        if not isinstance(status_period, int):
+            status_period = (header.get("status") or {}).get("period")
+        if not isinstance(status_period, int):
+            status_period = None
+
         situation = GameSituation(
             clock=raw_situation.get("clock"),
-            period=period if isinstance(period, int) else None,
+            period=status_period,
             down=raw_situation.get("down"),
             distance=raw_situation.get("distance"),
             downDistanceText=raw_situation.get("downDistanceText"),
@@ -113,15 +137,15 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
             isRedZone=raw_situation.get("isRedZone"),
         )
 
-    # --- Plays + win probability -------------------------------------------------
-    current_drive = (raw.get("drives") or {}).get("current") or {}
-    plays = current_drive.get("plays")
+    # --- Plays + win probability (unchanged) ------------------------------------
+    plays = ((raw.get("drives") or {}).get("current") or {}).get("plays")
+    win_probability = raw.get("winprobability")
 
     return GameDetails(
         summary=summary,
         boxscore=boxscore_categories,
         teamStats=team_stats_categories,
         plays=plays,
-        winProbability=raw.get("winprobability"),
+        winProbability=win_probability,
         situation=situation,
     )
