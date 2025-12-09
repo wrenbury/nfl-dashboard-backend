@@ -13,6 +13,51 @@ from ..clients import espn
 from .scoreboard import _map_competitor
 
 
+def _get_status_text(comp: Dict[str, Any], header: Dict[str, Any]) -> str:
+    status_type = (comp.get("status") or {}).get("type") or {}
+    short = status_type.get("shortDetail")
+    desc = status_type.get("description")
+    if short:
+        return short
+    if desc:
+        return desc
+    # fallback: header.status if needed
+    header_type = (header.get("status") or {}).get("type") or {}
+    return header_type.get("shortDetail") or header_type.get("description") or ""
+
+
+def _extract_period(comp: Dict[str, Any], header: Dict[str, Any]) -> int | None:
+    period = (comp.get("status") or {}).get("period")
+    if isinstance(period, int):
+        return period
+    period = (header.get("status") or {}).get("period")
+    if isinstance(period, int):
+        return period
+    return None
+
+
+def _extract_possession_team_id(raw_situation: Dict[str, Any]) -> str | None:
+    """
+    ESPN usually exposes possession as either:
+      - a team id (string / int), or
+      - an object with id / uid fields.
+    Be tolerant and stringify whatever we get.
+    """
+    possession = raw_situation.get("possession")
+
+    if possession is None:
+        return None
+
+    if isinstance(possession, dict):
+        team_id = possession.get("id") or possession.get("uid")
+        if team_id is None:
+            return None
+        return str(team_id)
+
+    # scalar id
+    return str(possession)
+
+
 def game_details(sport: Sport, event_id: str) -> GameDetails:
     """
     Build a rich GameDetails payload for a single event, powered by ESPN summary.
@@ -25,38 +70,28 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     - winProbability
 
     New:
-    - situation (clock, period, down & distance)
+    - situation (clock, period, down & distance, possession, red zone)
     """
     raw: Dict[str, Any] = espn.summary(sport, event_id)
 
-    header = raw.get("header", {}) or {}
+    header = raw.get("header") or {}
     competitions = header.get("competitions") or [{}]
     comp0: Dict[str, Any] = competitions[0] or {}
-
     raw_competitors = comp0.get("competitors") or []
 
     # --- High-level game summary -------------------------------------------------
-    status_type = (comp0.get("status") or {}).get("type") or {}
-    # Prefer shortDetail (e.g. "13:10 - 3rd") then description (e.g. "In Progress")
-    status = (
-        status_type.get("shortDetail")
-        or status_type.get("description")
-        or ""
-    )
-
     summary = GameSummary(
-        id=header.get("id") or str(event_id),
+        id=str(header.get("id") or event_id),
         sport=sport,
         startTime=comp0.get("date") or header.get("date") or "",
-        status=status,
+        status=_get_status_text(comp0, header),
         venue=(comp0.get("venue") or {}).get("fullName"),
         competitors=[_map_competitor(c) for c in raw_competitors],
     )
 
-    # --- Boxscore: player stats (unchanged logic so Box Score stays working) ----
+    # --- Boxscore: player stats --------------------------------------------------
     boxscore = raw.get("boxscore") or {}
     player_sides = boxscore.get("players") or []
-
     boxscore_categories: List[BoxScoreCategory] = []
 
     for side in player_sides:
@@ -69,7 +104,6 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         )
 
         for cat in side.get("statistics") or []:
-            # ESPN usually uses `name` but we fall back to any reasonable label.
             cat_title = (
                 cat.get("name")
                 or cat.get("displayName")
@@ -85,17 +119,16 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
                     or athlete_info.get("shortName")
                     or ""
                 )
-                stats = athlete.get("stats") or []
-                row = [label] + [str(s) for s in stats]
-                rows.append(row)
+                stats = [str(s) for s in (athlete.get("stats") or [])]
+                if not label and not stats:
+                    continue
+                rows.append([label] + stats)
 
             if rows:
-                title = f"{team_name} {cat_title.title()}".strip()
-                boxscore_categories.append(
-                    BoxScoreCategory(title=title, rows=rows)
-                )
+                title = f"{team_name} {cat_title}".strip()
+                boxscore_categories.append(BoxScoreCategory(title=title, rows=rows))
 
-    # --- Team stats (aggregate, unchanged) --------------------------------------
+    # --- Team stats --------------------------------------------------------------
     team_stats_categories: List[BoxScoreCategory] = []
     for stat in boxscore.get("teams") or []:
         team = stat.get("team") or {}
@@ -106,7 +139,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
             or "Team"
         )
         rows = [
-            [s.get("label", ""), s.get("displayValue", "")]
+            [s.get("label") or "", s.get("displayValue") or ""]
             for s in (stat.get("statistics") or [])
         ]
         if rows:
@@ -114,25 +147,19 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
                 BoxScoreCategory(title=f"{name} Team Stats", rows=rows)
             )
 
-    # --- Situation: clock + period + down & distance ----------------------------
+    # --- Situation: clock + period + down & distance + possession ---------------
     raw_situation = comp0.get("situation") or {}
     situation: GameSituation | None = None
     if raw_situation:
-        # period can live under competition.status.period or header.status.period
-        status_period = (comp0.get("status") or {}).get("period")
-        if not isinstance(status_period, int):
-            status_period = (header.get("status") or {}).get("period")
-        if not isinstance(status_period, int):
-            status_period = None
-
         situation = GameSituation(
             clock=raw_situation.get("clock"),
-            period=status_period,
+            period=_extract_period(comp0, header),
             down=raw_situation.get("down"),
             distance=raw_situation.get("distance"),
-            downDistanceText=raw_situation.get("downDistanceText"),
-            shortDownDistanceText=raw_situation.get("shortDownDistanceText"),
             yardLine=raw_situation.get("yardLine"),
+            shortDownDistanceText=raw_situation.get("shortDownDistanceText"),
+            downDistanceText=raw_situation.get("downDistanceText"),
+            possessionTeamId=_extract_possession_team_id(raw_situation),
             possessionText=raw_situation.get("possessionText"),
             isRedZone=raw_situation.get("isRedZone"),
         )
