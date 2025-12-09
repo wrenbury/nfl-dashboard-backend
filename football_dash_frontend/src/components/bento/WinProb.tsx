@@ -124,6 +124,7 @@ function normalizeWinProb(raw: any): NormalizedPoint[] {
   }));
 }
 
+// ESPN-style quarter tick positions across 0..1
 const QUARTER_TICKS = [0.125, 0.375, 0.625, 0.875];
 
 function formatQuarterTick(x: number): string {
@@ -131,6 +132,14 @@ function formatQuarterTick(x: number): string {
   if (x === 0.375) return "2nd";
   if (x === 0.625) return "3rd";
   if (x === 0.875) return "4th";
+  return "";
+}
+
+// ESPN-style vertical labels: 100 at top, 50 middle, 100 bottom
+function formatYAxisTick(v: number): string {
+  if (v === 100) return "100%";
+  if (v === 50) return "50%";
+  if (v === 0) return "100%";
   return "";
 }
 
@@ -161,7 +170,7 @@ export default function WinProb({
 
   return (
     <div className="card flex flex-col">
-      {/* ESPN-style header row */}
+      {/* Header row */}
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold">Win Probability</div>
         <div className="flex items-end gap-6 text-xs uppercase tracking-wide">
@@ -190,10 +199,12 @@ export default function WinProb({
             />
             <YAxis
               domain={[0, 100]}
-              tickFormatter={(v) => `${v}%`}
+              ticks={[0, 50, 100]}
+              tickFormatter={formatYAxisTick}
               tick={{ fontSize: 10 }}
               width={32}
             />
+            {/* Center 50% reference line */}
             <ReferenceLine y={50} strokeDasharray="3 3" />
             <Tooltip
               formatter={(value: any) => [`${Number(value).toFixed(1)}%`, "Home WP"]}
