@@ -39,7 +39,7 @@ class BoxScoreCategory(BaseModel):
 
 
 class GameSituation(BaseModel):
-    # e.g. "1:10"
+    # e.g. "13:10"
     clock: Optional[str] = None
     # quarter / period number, 1–4, OT etc.
     period: Optional[int] = None
@@ -47,12 +47,17 @@ class GameSituation(BaseModel):
     down: Optional[int] = None
     # yards to go
     distance: Optional[int] = None
-    # "3rd & 7 at LAC 42"
-    downDistanceText: Optional[str] = None
+    # yard line number (e.g. 44)
+    yardLine: Optional[int] = None
     # "3rd & 7"
     shortDownDistanceText: Optional[str] = None
-    yardLine: Optional[int] = None
+    # "3rd & 7 at LAC 44"
+    downDistanceText: Optional[str] = None
+    # ESPN team id that currently has possession
+    possessionTeamId: Optional[str] = None
+    # Human-readable "PHI ball on LAC 44"
     possessionText: Optional[str] = None
+    # In the red zone
     isRedZone: Optional[bool] = None
 
 
@@ -62,5 +67,5 @@ class GameDetails(BaseModel):
     teamStats: List[BoxScoreCategory] = []
     plays: Optional[list] = None
     winProbability: Optional[list] = None
-    # NEW, backwards-compatible
+    # NEW, backwards-compatible extension
     situation: Optional[GameSituation] = None
