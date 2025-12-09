@@ -1,3 +1,5 @@
+// football_dash_frontend/src/components/bento/WinProb.tsx
+
 import {
   ResponsiveContainer,
   LineChart,
@@ -15,48 +17,62 @@ type Props = {
   awayTeam?: string;
 };
 
-type WinProbPoint = {
-  t: number;        // 0.0 – 1.0, fraction of game elapsed (regulation)
-  home: number;     // 0–100%
-  periodNum?: number;
+type RawWinProbPoint = {
+  homeWinPercentage?: number;
+  homeWinProb?: number;
+  period?: number | { number?: number };
+  secondsLeft?: number;
+  secondsRemaining?: number;
+  clock?: string | number;
 };
 
-const TOTAL_REG_SECONDS = 60 * 60; // 60 minutes, ignore OT for now
+type NormalizedPoint = {
+  t: number; // 0..1 game progression
+  q: number | null; // quarter / period
+  home: number; // 0..100 (home WP)
+};
 
-function normalizeWinProb(raw: any): WinProbPoint[] {
-  if (!Array.isArray(raw)) return [];
+const TOTAL_REG_SECONDS = 60 * 60; // 4 * 15 minutes
 
-  const points: WinProbPoint[] = [];
+function parseClockToSecondsRemaining(clock: string | number | undefined): number | null {
+  if (clock == null) return null;
+  if (typeof clock === "number") return clock;
+  const parts = clock.split(":");
+  if (parts.length !== 2) return null;
+  const mm = parseInt(parts[0]!, 10);
+  const ss = parseInt(parts[1]!, 10);
+  if (Number.isNaN(mm) || Number.isNaN(ss)) return null;
+  return mm * 60 + ss;
+}
 
-  for (let i = 0; i < raw.length; i++) {
-    const wp = raw[i] || {};
+function normalizeWinProb(raw: any): NormalizedPoint[] {
+  if (!Array.isArray(raw) || raw.length === 0) return [];
 
-    // --- win % ---
-    let rawHome: number | null = null;
-    if (typeof wp.homeWinPercentage === "number") {
-      rawHome = wp.homeWinPercentage;
-    } else if (typeof wp.homeWinProb === "number") {
-      rawHome = wp.homeWinProb;
+  const out: NormalizedPoint[] = [];
+
+  raw.forEach((wp: RawWinProbPoint, index: number) => {
+    const prob =
+      typeof wp.homeWinPercentage === "number"
+        ? wp.homeWinPercentage
+        : typeof wp.homeWinProb === "number"
+        ? wp.homeWinProb
+        : null;
+
+    if (prob == null) return;
+
+    // period / quarter
+    let periodNum: number | null = null;
+    if (typeof wp.period === "number") {
+      periodNum = wp.period;
+    } else if (wp.period && typeof wp.period === "object") {
+      const maybe = (wp.period as any).number;
+      if (typeof maybe === "number") {
+        periodNum = maybe;
+      }
     }
-    if (rawHome == null || !isFinite(rawHome)) continue;
 
-    const asPct =
-      rawHome >= 0 && rawHome <= 1 ? rawHome * 100 : rawHome;
-    const homePct = Math.max(0, Math.min(100, asPct));
-
-    // --- period / quarter ---
-    let periodNum: number | undefined;
-    const p =
-      typeof wp.period === "number"
-        ? wp.period
-        : typeof wp.period?.number === "number"
-        ? wp.period.number
-        : undefined;
-    if (typeof p === "number") {
-      periodNum = p;
-    }
-
-    // --- time: convert seconds remaining to fraction elapsed ---
+    // primary: secondsLeft / secondsRemaining over whole game
+    let t: number | null = null;
     let secondsLeft: number | null = null;
     if (typeof wp.secondsLeft === "number") {
       secondsLeft = wp.secondsLeft;
@@ -64,40 +80,58 @@ function normalizeWinProb(raw: any): WinProbPoint[] {
       secondsLeft = wp.secondsRemaining;
     }
 
-    let t: number;
-    if (secondsLeft != null && isFinite(secondsLeft)) {
+    if (secondsLeft != null) {
       const clamped = Math.max(0, Math.min(TOTAL_REG_SECONDS, secondsLeft));
-      t = 1 - clamped / TOTAL_REG_SECONDS; // 0 at start, 1 at end
+      const elapsed = TOTAL_REG_SECONDS - clamped;
+      t = elapsed / TOTAL_REG_SECONDS;
     } else {
-      // Fallback: evenly spaced by index if we don't have timing info
-      t = i; // We'll renormalize below
+      // secondary: derive from period + in-quarter clock
+      const secRemainingInPeriod = parseClockToSecondsRemaining(wp.clock);
+      if (periodNum != null && secRemainingInPeriod != null) {
+        const periodLength = 15 * 60;
+        const elapsedInPeriod = periodLength - secRemainingInPeriod;
+        const baseElapsedBefore = (periodNum - 1) * periodLength;
+        const totalElapsed = baseElapsedBefore + elapsedInPeriod;
+        t = totalElapsed / TOTAL_REG_SECONDS;
+      }
     }
 
-    points.push({
+    // fallback: evenly spaced
+    if (t == null) {
+      t = raw.length > 1 ? index / (raw.length - 1) : 0;
+    }
+
+    if (!Number.isFinite(t)) t = 0;
+    if (t < 0) t = 0;
+    if (t > 1) t = 1;
+
+    out.push({
       t,
-      home: Math.round(homePct),
-      periodNum,
+      q: periodNum,
+      home: Math.max(0, Math.min(100, prob * 100)),
     });
-  }
+  });
 
-  if (!points.length) return points;
+  if (!out.length) return [];
 
-  // If we had to use index-based t, normalize them into 0–1 range.
-  const tMax = points.reduce((m, p) => Math.max(m, p.t), 0);
-  if (tMax > 1) {
-    points.forEach((p) => {
-      p.t = p.t / tMax;
-    });
-  }
+  const lastT = out[out.length - 1]!.t;
+  const domainMax = lastT > 0 ? lastT : 1;
 
-  return points;
+  // clamp t to [0, domainMax]
+  return out.map((p) => ({
+    ...p,
+    t: Math.max(0, Math.min(domainMax, p.t)),
+  }));
 }
 
-function formatPercent(v: number | string | undefined): string {
-  if (v == null) return "";
-  const n = typeof v === "number" ? v : parseFloat(v);
-  if (!isFinite(n)) return "";
-  return `${Math.round(n)}%`;
+const QUARTER_TICKS = [0.125, 0.375, 0.625, 0.875];
+
+function formatQuarterTick(x: number): string {
+  if (x === 0.125) return "1st";
+  if (x === 0.375) return "2nd";
+  if (x === 0.625) return "3rd";
+  if (x === 0.875) return "4th";
+  return "";
 }
 
 export default function WinProb({
@@ -118,102 +152,59 @@ export default function WinProb({
     );
   }
 
-  const latest = data[data.length - 1];
-  const homePctLabel = formatPercent(latest.home);
-  const awayPctLabel = formatPercent(100 - latest.home);
+  const lastT = data[data.length - 1]!.t || 1;
+  const domainMax = lastT > 0 ? lastT : 1;
 
-  // Fixed “ESPN-style” quarter ticks at midpoints of each quarter.
-  // 4 quarters => 60 minutes => quarters at 0–15–30–45–60 min.
-  // Midpoints (as fraction of game): 7.5, 22.5, 37.5, 52.5 minutes.
-  const quarterTicks = [0.125, 0.375, 0.625, 0.875];
-  const quarterLabels = ["1st", "2nd", "3rd", "4th"];
+  const latest = data[data.length - 1]!;
+  const homePctLabel = `${latest.home.toFixed(0)}%`;
+  const awayPctLabel = `${(100 - latest.home).toFixed(0)}%`;
 
   return (
     <div className="card flex flex-col">
+      {/* ESPN-style header row */}
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold">Win Probability</div>
-        <div className="flex items-baseline gap-6 text-xs">
+        <div className="flex items-end gap-6 text-xs uppercase tracking-wide">
           <div className="flex flex-col items-center">
-            <span className="text-[10px] uppercase opacity-60">
-              {homeTeam}
-            </span>
-            <span className="text-base font-semibold">{homePctLabel}</span>
-          </div>
-          <div className="flex flex-col items-center opacity-80">
-            <span className="text-[10px] uppercase opacity-60">
-              {awayTeam}
-            </span>
+            <span className="opacity-60">{awayTeam}</span>
             <span className="text-base font-semibold">{awayPctLabel}</span>
+          </div>
+          <div className="flex flex-col items-center">
+            <span className="opacity-60">{homeTeam}</span>
+            <span className="text-base font-semibold">{homePctLabel}</span>
           </div>
         </div>
       </div>
 
-      <div className="w-full h-40">
+      <div className="h-52">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={data}
-            margin={{ top: 8, right: 8, left: 8, bottom: 20 }}
-          >
-            <CartesianGrid
-              strokeDasharray="3 3"
-              vertical={false}
-              strokeOpacity={0.2}
-            />
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
             <XAxis
               dataKey="t"
               type="number"
-              domain={[0, 1]}
-              ticks={quarterTicks}
-              tickLine={false}
-              axisLine={false}
-              tickFormatter={(value: number) => {
-                const i = quarterTicks.findIndex(
-                  (tick) => Math.abs(tick - value) < 0.001
-                );
-                return quarterLabels[i] ?? "";
-              }}
+              domain={[0, domainMax]}
+              ticks={QUARTER_TICKS.filter((t) => t <= domainMax)}
+              tickFormatter={formatQuarterTick}
+              tick={{ fontSize: 10 }}
             />
             <YAxis
               domain={[0, 100]}
-              ticks={[0, 25, 50, 75, 100]}
               tickFormatter={(v) => `${v}%`}
-              tickLine={false}
-              axisLine={false}
-              width={40}
+              tick={{ fontSize: 10 }}
+              width={32}
             />
-            <ReferenceLine
-              y={50}
-              stroke="#ffffff"
-              strokeOpacity={0.2}
-              strokeDasharray="3 3"
-            />
+            <ReferenceLine y={50} strokeDasharray="3 3" />
             <Tooltip
-              cursor={{ strokeOpacity: 0.1 }}
-              content={({ active, payload }) => {
-                if (!active || !payload || !payload.length) return null;
-                const p = payload[0].payload as WinProbPoint;
-                return (
-                  <div className="rounded-md bg-[#050608] border border-[#262b33] px-3 py-2 text-xs">
-                    {p.periodNum && (
-                      <div className="mb-1 opacity-70">
-                        {["", "1st", "2nd", "3rd", "4th"][p.periodNum] ??
-                          `Q${p.periodNum}`}
-                      </div>
-                    )}
-                    <div className="flex flex-col gap-0.5">
-                      <div>
-                        <span className="opacity-60 mr-1">{homeTeam}</span>
-                        <span className="font-medium">
-                          {formatPercent(p.home)}
-                        </span>
-                      </div>
-                      <div className="opacity-80">
-                        <span className="opacity-60 mr-1">{awayTeam}</span>
-                        <span>{formatPercent(100 - p.home)}</span>
-                      </div>
-                    </div>
-                  </div>
-                );
+              formatter={(value: any) => [`${Number(value).toFixed(1)}%`, "Home WP"]}
+              labelFormatter={(_, payload) => {
+                const q = payload?.[0]?.payload?.q;
+                if (!q) return "Win Probability";
+                if (q === 1) return "1st Quarter";
+                if (q === 2) return "2nd Quarter";
+                if (q === 3) return "3rd Quarter";
+                if (q === 4) return "4th Quarter";
+                return `Q${q}`;
               }}
             />
             <Line
