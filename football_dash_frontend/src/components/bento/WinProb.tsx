@@ -2,8 +2,8 @@
 
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -15,6 +15,7 @@ type Props = {
   winProbability: any;
   homeTeam?: string;
   awayTeam?: string;
+  gameStatus?: string; // "pre", "in", "final", "post", etc.
 };
 
 type RawWinProbPoint = {
@@ -24,15 +25,19 @@ type RawWinProbPoint = {
   secondsLeft?: number;
   secondsRemaining?: number;
   clock?: string | number;
+  playId?: string;
 };
 
 type NormalizedPoint = {
   t: number; // 0..1 game progression
   q: number | null; // quarter / period
   home: number; // 0..100 (home WP)
+  away: number; // 0..100 (away WP)
+  secondsLeft: number | null;
 };
 
 const TOTAL_REG_SECONDS = 60 * 60; // 4 * 15 minutes
+const QUARTER_SECONDS = 15 * 60; // 15 minutes per quarter
 
 function parseClockToSecondsRemaining(clock: string | number | undefined): number | null {
   if (clock == null) return null;
@@ -81,18 +86,30 @@ function normalizeWinProb(raw: any): NormalizedPoint[] {
     }
 
     if (secondsLeft != null) {
-      const clamped = Math.max(0, Math.min(TOTAL_REG_SECONDS, secondsLeft));
-      const elapsed = TOTAL_REG_SECONDS - clamped;
-      t = elapsed / TOTAL_REG_SECONDS;
+      // Handle overtime: if secondsLeft is negative or period > 4
+      if (periodNum && periodNum > 4) {
+        // Overtime - extend beyond 1.0
+        const otElapsed = QUARTER_SECONDS - (secondsLeft % QUARTER_SECONDS);
+        t = 1.0 + (otElapsed / QUARTER_SECONDS) * 0.1; // OT takes 10% extra
+      } else {
+        const clamped = Math.max(0, Math.min(TOTAL_REG_SECONDS, secondsLeft));
+        const elapsed = TOTAL_REG_SECONDS - clamped;
+        t = elapsed / TOTAL_REG_SECONDS;
+      }
     } else {
       // secondary: derive from period + in-quarter clock
       const secRemainingInPeriod = parseClockToSecondsRemaining(wp.clock);
       if (periodNum != null && secRemainingInPeriod != null) {
-        const periodLength = 15 * 60;
-        const elapsedInPeriod = periodLength - secRemainingInPeriod;
-        const baseElapsedBefore = (periodNum - 1) * periodLength;
-        const totalElapsed = baseElapsedBefore + elapsedInPeriod;
-        t = totalElapsed / TOTAL_REG_SECONDS;
+        if (periodNum > 4) {
+          // Overtime
+          const elapsedInOT = QUARTER_SECONDS - secRemainingInPeriod;
+          t = 1.0 + (elapsedInOT / QUARTER_SECONDS) * 0.1;
+        } else {
+          const elapsedInPeriod = QUARTER_SECONDS - secRemainingInPeriod;
+          const baseElapsedBefore = (periodNum - 1) * QUARTER_SECONDS;
+          const totalElapsed = baseElapsedBefore + elapsedInPeriod;
+          t = totalElapsed / TOTAL_REG_SECONDS;
+        }
       }
     }
 
@@ -103,43 +120,45 @@ function normalizeWinProb(raw: any): NormalizedPoint[] {
 
     if (!Number.isFinite(t)) t = 0;
     if (t < 0) t = 0;
-    if (t > 1) t = 1;
 
+    const homeWP = Math.max(0, Math.min(100, prob * 100));
     out.push({
       t,
       q: periodNum,
-      home: Math.max(0, Math.min(100, prob * 100)),
+      home: homeWP,
+      away: 100 - homeWP,
+      secondsLeft,
     });
   });
 
   if (!out.length) return [];
 
-  const lastT = out[out.length - 1]!.t;
-  const domainMax = lastT > 0 ? lastT : 1;
+  // Sort by time to ensure proper rendering
+  out.sort((a, b) => a.t - b.t);
 
-  // clamp t to [0, domainMax]
-  return out.map((p) => ({
-    ...p,
-    t: Math.max(0, Math.min(domainMax, p.t)),
-  }));
+  return out;
 }
 
-// ESPN-style quarter tick positions across 0..1
+// Quarter divider positions (boundaries between quarters)
+const QUARTER_DIVIDERS = [0.25, 0.5, 0.75];
+
+// ESPN-style quarter tick positions (center of each quarter)
 const QUARTER_TICKS = [0.125, 0.375, 0.625, 0.875];
 
 function formatQuarterTick(x: number): string {
-  if (x === 0.125) return "1st";
-  if (x === 0.375) return "2nd";
-  if (x === 0.625) return "3rd";
-  if (x === 0.875) return "4th";
+  if (Math.abs(x - 0.125) < 0.01) return "1st";
+  if (Math.abs(x - 0.375) < 0.01) return "2nd";
+  if (Math.abs(x - 0.625) < 0.01) return "3rd";
+  if (Math.abs(x - 0.875) < 0.01) return "4th";
+  if (x > 1.0) return "OT";
   return "";
 }
 
-// ESPN-style vertical labels: 100 at top, 50 middle, 100 bottom
+// ESPN-style vertical labels: team labels at top and bottom
 function formatYAxisTick(v: number): string {
-  if (v === 100) return "100%";
-  if (v === 50) return "50%";
-  if (v === 0) return "100%";
+  if (v === 100) return "100";
+  if (v === 50) return "50";
+  if (v === 0) return "100";
   return "";
 }
 
@@ -147,6 +166,7 @@ export default function WinProb({
   winProbability,
   homeTeam = "Home",
   awayTeam = "Away",
+  gameStatus,
 }: Props) {
   const data = normalizeWinProb(winProbability);
 
@@ -161,76 +181,179 @@ export default function WinProb({
     );
   }
 
-  const lastT = data[data.length - 1]!.t || 1;
-  const domainMax = lastT > 0 ? lastT : 1;
+  const lastPoint = data[data.length - 1]!;
+  const lastT = lastPoint.t || 1;
+  const domainMax = Math.max(1, lastT);
 
-  const latest = data[data.length - 1]!;
-  const homePctLabel = `${latest.home.toFixed(0)}%`;
-  const awayPctLabel = `${(100 - latest.home).toFixed(0)}%`;
+  const homePct = lastPoint.home;
+  const awayPct = lastPoint.away;
+  const homePctLabel = `${homePct.toFixed(0)}%`;
+  const awayPctLabel = `${awayPct.toFixed(0)}%`;
+
+  // Determine if game is finished (for end-game fill)
+  const isGameComplete = gameStatus === "final" || gameStatus === "post" || lastT >= 1;
+  const homeWins = homePct > 50;
+
+  // Calculate ticks based on game progress
+  const visibleQuarterTicks = QUARTER_TICKS.filter((t) => t <= domainMax);
+  if (domainMax > 1.0) {
+    // Add OT tick if overtime
+    visibleQuarterTicks.push(1.05);
+  }
+
+  // Get the "End Game" time label
+  const lastQuarter = lastPoint.q;
+  let endLabel = "End Game";
+  if (lastQuarter === 1) endLabel = "End 1st";
+  else if (lastQuarter === 2) endLabel = "End 2nd";
+  else if (lastQuarter === 3) endLabel = "End 3rd";
+  else if (lastQuarter === 4) endLabel = "End 4th";
+  else if (lastQuarter && lastQuarter > 4) endLabel = "End OT";
 
   return (
     <div className="card flex flex-col">
-      {/* Header row */}
+      {/* Header row with team names and percentages */}
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold">Win Probability</div>
-        <div className="flex items-end gap-6 text-xs uppercase tracking-wide">
+        <div className="flex items-center gap-6 text-xs uppercase tracking-wide">
           <div className="flex flex-col items-center">
             <span className="opacity-60">{awayTeam}</span>
-            <span className="text-base font-semibold">{awayPctLabel}</span>
+            <span className={`text-base font-semibold ${!homeWins && isGameComplete ? "text-green-400" : ""}`}>
+              {awayPctLabel}
+            </span>
           </div>
           <div className="flex flex-col items-center">
             <span className="opacity-60">{homeTeam}</span>
-            <span className="text-base font-semibold">{homePctLabel}</span>
+            <span className={`text-base font-semibold ${homeWins && isGameComplete ? "text-green-400" : ""}`}>
+              {homePctLabel}
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="h-52">
+      <div className="h-52 relative">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" opacity={0.25} />
+          <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
+            <defs>
+              {/* Gradient for home team win probability area */}
+              <linearGradient id="homeWpGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+                <stop offset="50%" stopColor="#3b82f6" stopOpacity={0.1} />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+              </linearGradient>
+              {/* Gradient for away team (below 50%) */}
+              <linearGradient id="awayWpGradient" x1="0" y1="1" x2="0" y2="0">
+                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.4} />
+                <stop offset="50%" stopColor="#ef4444" stopOpacity={0.1} />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
+
+            {/* Quarter divider lines */}
+            {QUARTER_DIVIDERS.filter((d) => d <= domainMax).map((d) => (
+              <ReferenceLine
+                key={`divider-${d}`}
+                x={d}
+                stroke="#475569"
+                strokeDasharray="2 2"
+                opacity={0.5}
+              />
+            ))}
+
             <XAxis
               dataKey="t"
               type="number"
               domain={[0, domainMax]}
-              ticks={QUARTER_TICKS.filter((t) => t <= domainMax)}
+              ticks={visibleQuarterTicks}
               tickFormatter={formatQuarterTick}
-              tick={{ fontSize: 10 }}
+              tick={{ fontSize: 10, fill: "#94a3b8" }}
+              axisLine={{ stroke: "#334155" }}
+              tickLine={{ stroke: "#334155" }}
             />
             <YAxis
               domain={[0, 100]}
               ticks={[0, 50, 100]}
               tickFormatter={formatYAxisTick}
-              tick={{ fontSize: 10 }}
-              width={32}
+              tick={{ fontSize: 10, fill: "#94a3b8" }}
+              width={28}
+              axisLine={{ stroke: "#334155" }}
+              tickLine={{ stroke: "#334155" }}
             />
+
             {/* Center 50% reference line */}
-            <ReferenceLine y={50} strokeDasharray="3 3" />
-            <Tooltip
-              formatter={(value: any) => [`${Number(value).toFixed(1)}%`, "Home WP"]}
-              labelFormatter={(_, payload) => {
-                const q = payload?.[0]?.payload?.q;
-                if (!q) return "Win Probability";
-                if (q === 1) return "1st Quarter";
-                if (q === 2) return "2nd Quarter";
-                if (q === 3) return "3rd Quarter";
-                if (q === 4) return "4th Quarter";
-                return `Q${q}`;
-              }}
-            />
-            <Line
+            <ReferenceLine y={50} stroke="#64748b" strokeDasharray="4 4" />
+
+            {/* Home team area fill (above 50%) */}
+            <Area
               type="monotone"
               dataKey="home"
-              dot={false}
+              stroke="#3b82f6"
               strokeWidth={2}
+              fill="url(#homeWpGradient)"
+              fillOpacity={1}
               isAnimationActive={false}
+              dot={false}
+              activeDot={{ r: 4, fill: "#3b82f6", stroke: "#fff", strokeWidth: 2 }}
+              baseLine={50}
             />
-          </LineChart>
+
+            <Tooltip
+              contentStyle={{
+                backgroundColor: "#1e293b",
+                border: "1px solid #334155",
+                borderRadius: "8px",
+                fontSize: "12px",
+              }}
+              labelStyle={{ color: "#94a3b8" }}
+              formatter={(value: any, name: string) => {
+                const v = Number(value).toFixed(1);
+                if (name === "home") {
+                  return [`${v}%`, `${homeTeam} WP`];
+                }
+                return [`${v}%`, `${awayTeam} WP`];
+              }}
+              labelFormatter={(_, payload) => {
+                const point = payload?.[0]?.payload;
+                if (!point) return "Win Probability";
+                const q = point.q;
+                let qLabel = "";
+                if (q === 1) qLabel = "1st Quarter";
+                else if (q === 2) qLabel = "2nd Quarter";
+                else if (q === 3) qLabel = "3rd Quarter";
+                else if (q === 4) qLabel = "4th Quarter";
+                else if (q && q > 4) qLabel = "Overtime";
+
+                // Calculate approximate clock from t value
+                if (point.secondsLeft != null) {
+                  const mins = Math.floor(point.secondsLeft / 60);
+                  const secs = point.secondsLeft % 60;
+                  return `${qLabel} - ${mins}:${secs.toString().padStart(2, "0")}`;
+                }
+                return qLabel || "Win Probability";
+              }}
+            />
+          </AreaChart>
         </ResponsiveContainer>
+
+        {/* Y-axis team labels */}
+        <div className="absolute left-0 top-0 text-[9px] text-slate-400 uppercase tracking-wider">
+          {homeTeam}
+        </div>
+        <div className="absolute left-0 bottom-0 text-[9px] text-slate-400 uppercase tracking-wider">
+          {awayTeam}
+        </div>
       </div>
 
-      <div className="mt-2 text-[10px] text-right opacity-40">
-        According to ESPN Analytics
+      {/* Footer with end game info */}
+      <div className="mt-2 flex items-center justify-between text-[10px]">
+        {isGameComplete && (
+          <span className="text-slate-400">
+            {endLabel}: {lastPoint.home > 50 ? homeTeam : awayTeam} {Math.abs(lastPoint.home - 50) > 49 ? "wins" : "leads"}
+          </span>
+        )}
+        <span className="opacity-40 ml-auto">According to ESPN Analytics</span>
       </div>
     </div>
   );
