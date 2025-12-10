@@ -111,6 +111,20 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
                 or ""
             )
 
+            # Extract column headers from the keys/labels
+            headers: List[str] = ["Player"]
+            keys = cat.get("keys") or cat.get("labels") or []
+            if keys:
+                headers.extend([str(k) for k in keys])
+            else:
+                # Fallback: try to get labels from the first athlete's stats
+                athletes = cat.get("athletes") or []
+                if athletes:
+                    first_athlete = athletes[0]
+                    stat_count = len(first_athlete.get("stats") or [])
+                    # Use generic headers if we can't find labels
+                    headers.extend([f"Stat{i+1}" for i in range(stat_count)])
+
             rows: List[List[str]] = []
             for athlete in cat.get("athletes") or []:
                 athlete_info = athlete.get("athlete") or {}
@@ -126,7 +140,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
 
             if rows:
                 title = f"{team_name} {cat_title}".strip()
-                boxscore_categories.append(BoxScoreCategory(title=title, rows=rows))
+                boxscore_categories.append(BoxScoreCategory(title=title, headers=headers, rows=rows))
 
     # --- Team stats --------------------------------------------------------------
     team_stats_categories: List[BoxScoreCategory] = []

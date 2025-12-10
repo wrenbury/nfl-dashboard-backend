@@ -300,38 +300,31 @@ export default function WinProb({
             />
 
             <Tooltip
-              contentStyle={{
-                backgroundColor: "#1e293b",
-                border: "1px solid #334155",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
-              labelStyle={{ color: "#94a3b8" }}
-              formatter={(value: any, name: string) => {
-                const v = Number(value).toFixed(1);
-                if (name === "home") {
-                  return [`${v}%`, `${homeTeam} WP`];
-                }
-                return [`${v}%`, `${awayTeam} WP`];
-              }}
-              labelFormatter={(_, payload) => {
-                const point = payload?.[0]?.payload;
-                if (!point) return "Win Probability";
-                const q = point.q;
-                let qLabel = "";
-                if (q === 1) qLabel = "1st Quarter";
-                else if (q === 2) qLabel = "2nd Quarter";
-                else if (q === 3) qLabel = "3rd Quarter";
-                else if (q === 4) qLabel = "4th Quarter";
-                else if (q && q > 4) qLabel = "Overtime";
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const point = payload[0]?.payload;
+                if (!point) return null;
 
-                // Calculate approximate clock from t value
-                if (point.secondsLeft != null) {
-                  const mins = Math.floor(point.secondsLeft / 60);
-                  const secs = point.secondsLeft % 60;
-                  return `${qLabel} - ${mins}:${secs.toString().padStart(2, "0")}`;
-                }
-                return qLabel || "Win Probability";
+                const homeWP = point.home.toFixed(1);
+                const awayWP = point.away.toFixed(1);
+
+                return (
+                  <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg px-4 py-3 shadow-xl">
+                    <div className="text-xs text-slate-400 mb-2 font-medium">
+                      Win Probability
+                    </div>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm text-slate-300">{homeTeam} WP</span>
+                        <span className="text-sm font-bold text-blue-400">{homeWP}%</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-sm text-slate-300">{awayTeam} WP</span>
+                        <span className="text-sm font-bold text-red-400">{awayWP}%</span>
+                      </div>
+                    </div>
+                  </div>
+                );
               }}
             />
           </AreaChart>

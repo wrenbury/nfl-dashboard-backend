@@ -9,6 +9,72 @@ from ..cfb_scoreboard import _get_week_for_date, _normalize_cfb_status
 from ..utils.cfb_logos import get_cfb_logo
 
 
+def get_nfl_weeks() -> List[Week]:
+    """
+    Get the NFL season weeks from ESPN calendar data.
+    Returns a list of Week objects with week number, label, and date range.
+    """
+    raw = espn.calendar("nfl")
+    weeks: List[Week] = []
+
+    # ESPN calendar data structure:
+    # leagues[0].calendar[0] = preseason, [1] = regular season, [2] = postseason
+    leagues = raw.get("leagues", [])
+    if not leagues:
+        return weeks
+
+    calendar = leagues[0].get("calendar", [])
+
+    # Find regular season entries (type 2)
+    for cal_section in calendar:
+        # Handle both list of entries and list of sections with entries
+        entries = cal_section if isinstance(cal_section, list) else cal_section.get("entries", [])
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            # Regular season weeks
+            week_num = entry.get("value")
+            label = entry.get("label", f"Week {week_num}")
+            start_date = entry.get("startDate", "")
+            end_date = entry.get("endDate", "")
+
+            if week_num is not None:
+                # Parse dates (ESPN returns ISO format like "2025-12-03T05:00Z")
+                if start_date:
+                    start_date = start_date.split("T")[0]
+                if end_date:
+                    end_date = end_date.split("T")[0]
+
+                weeks.append(Week(
+                    number=int(week_num),
+                    label=label,
+                    startDate=start_date,
+                    endDate=end_date,
+                ))
+
+    return weeks
+
+
+def get_current_nfl_week() -> int | None:
+    """Determine the current NFL week based on today's date."""
+    weeks = get_nfl_weeks()
+    if not weeks:
+        return None
+
+    today = datetime.now(timezone.utc).date()
+    today_str = today.isoformat()
+
+    for week in weeks:
+        if week.startDate and week.endDate:
+            if week.startDate <= today_str <= week.endDate:
+                return week.number
+
+    # If not in any week range, return the latest week
+    return weeks[-1].number if weeks else None
+
+
 def _map_competitor(raw) -> Competitor:
     t = raw["team"]
     logo = None

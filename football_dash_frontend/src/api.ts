@@ -20,6 +20,13 @@ function buildUrl(path: string): string {
   return `${API_BASE}${path}`;
 }
 
+export type Week = {
+  number: number;
+  label: string;
+  startDate: string;
+  endDate: string;
+};
+
 export const API = {
   scoreboard(
     sport: "nfl" | "college-football",
@@ -36,5 +43,13 @@ export const API = {
   game(sport: "nfl" | "college-football", eventId: string): string {
     const path = `/api/game/${sport}/${encodeURIComponent(eventId)}`;
     return buildUrl(path);
+  },
+
+  nflWeeks(): string {
+    return buildUrl("/api/nfl/weeks");
+  },
+
+  nflCurrentWeek(): string {
+    return buildUrl("/api/nfl/current-week");
   },
 };
