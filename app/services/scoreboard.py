@@ -2,6 +2,7 @@
 
 from typing import List, Optional
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from ..models.schemas import *
 from ..clients import espn, cfbd
@@ -9,10 +10,34 @@ from ..cfb_scoreboard import _get_week_for_date, _normalize_cfb_status
 from ..utils.cfb_logos import get_cfb_logo
 
 
+def _convert_utc_to_et_date(utc_timestamp: str) -> str:
+    """
+    Convert ESPN's UTC timestamp to ET date string.
+    ESPN returns timestamps like "2025-12-03T05:00Z" which is UTC.
+    NFL games are scheduled in ET, so we convert to ET before extracting the date.
+
+    Example: "2025-12-06T01:20Z" (Fri 1:20 AM UTC) -> "2025-12-05" (Thu in ET)
+    """
+    if not utc_timestamp or "T" not in utc_timestamp:
+        return utc_timestamp
+
+    try:
+        # Parse UTC timestamp
+        utc_dt = datetime.fromisoformat(utc_timestamp.replace("Z", "+00:00"))
+        # Convert to ET
+        et_dt = utc_dt.astimezone(ZoneInfo("America/New_York"))
+        # Return date string
+        return et_dt.date().isoformat()
+    except Exception:
+        # Fallback to original behavior if parsing fails
+        return utc_timestamp.split("T")[0]
+
+
 def get_nfl_weeks() -> List[Week]:
     """
     Get the NFL season weeks from ESPN calendar data.
     Returns a list of Week objects with week number, label, and date range.
+    Includes both regular season and playoff weeks.
     """
     raw = espn.calendar("nfl")
     weeks: List[Week] = []
@@ -25,7 +50,23 @@ def get_nfl_weeks() -> List[Week]:
 
     calendar = leagues[0].get("calendar", [])
 
-    # Find regular season entries (type 2)
+    # Mapping for playoff labels based on typical NFL playoff structure
+    # Playoff weeks are typically 18-21 (or labeled differently by ESPN)
+    PLAYOFF_LABELS = {
+        "Wild Card": "WILD CARD",
+        "Wildcard": "WILD CARD",
+        "WildCard": "WILD CARD",
+        "Wild-Card": "WILD CARD",
+        "Divisional": "DIVISIONAL ROUND",
+        "Divisional Round": "DIVISIONAL ROUND",
+        "Conference Championships": "CONFERENCE CHAMPIONSHIP",
+        "Conference Championship": "CONFERENCE CHAMPIONSHIP",
+        "Super Bowl": "SUPERBOWL",
+        "SuperBowl": "SUPERBOWL",
+        "Pro Bowl": "PRO BOWL",
+    }
+
+    # Process all calendar sections (regular season and postseason)
     for cal_section in calendar:
         # Handle both list of entries and list of sections with entries
         entries = cal_section if isinstance(cal_section, list) else cal_section.get("entries", [])
@@ -34,22 +75,28 @@ def get_nfl_weeks() -> List[Week]:
             if not isinstance(entry, dict):
                 continue
 
-            # Regular season weeks
             week_num = entry.get("value")
             label = entry.get("label", f"Week {week_num}")
             start_date = entry.get("startDate", "")
             end_date = entry.get("endDate", "")
 
             if week_num is not None:
-                # Parse dates (ESPN returns ISO format like "2025-12-03T05:00Z")
+                # Convert UTC dates to ET dates
                 if start_date:
-                    start_date = start_date.split("T")[0]
+                    start_date = _convert_utc_to_et_date(start_date)
                 if end_date:
-                    end_date = end_date.split("T")[0]
+                    end_date = _convert_utc_to_et_date(end_date)
+
+                # Normalize playoff labels
+                normalized_label = label
+                for playoff_key, playoff_value in PLAYOFF_LABELS.items():
+                    if playoff_key.lower() in label.lower():
+                        normalized_label = playoff_value
+                        break
 
                 weeks.append(Week(
                     number=int(week_num),
-                    label=label,
+                    label=normalized_label,
                     startDate=start_date,
                     endDate=end_date,
                 ))
@@ -58,12 +105,16 @@ def get_nfl_weeks() -> List[Week]:
 
 
 def get_current_nfl_week() -> int | None:
-    """Determine the current NFL week based on today's date."""
+    """
+    Determine the current NFL week based on today's date in ET.
+    Since NFL games are scheduled in ET, we use ET timezone for comparison.
+    """
     weeks = get_nfl_weeks()
     if not weeks:
         return None
 
-    today = datetime.now(timezone.utc).date()
+    # Get current date in ET (where NFL games are scheduled)
+    today = datetime.now(ZoneInfo("America/New_York")).date()
     today_str = today.isoformat()
 
     for week in weeks:
