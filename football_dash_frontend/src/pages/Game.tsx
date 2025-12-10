@@ -101,56 +101,112 @@ export default function Game() {
     }
   }
 
+  // Possession indicator - determine which team has the ball
+  let possessionTeamSide: "home" | "away" | null = null;
+  if (situation?.possessionTeamId) {
+    const possId = String(situation.possessionTeamId);
+    if (home?.team?.id && String(home.team.id) === possId) {
+      possessionTeamSide = "home";
+    } else if (away?.team?.id && String(away.team.id) === possId) {
+      possessionTeamSide = "away";
+    }
+  }
+
+  // Red zone indicator
+  const isRedZone = situation?.isRedZone === true;
+
+  // Venue info
+  const venue = summary.venue || null;
+
   return (
-    <section className="space-y-6">
+    <section className="space-y-5">
       {/* Top meta row: back link + date/status (ESPN-style) */}
       <div className="flex items-center justify-between gap-4">
         <Link
           to={sport === "college-football" ? "/college-football" : "/nfl"}
-          className="inline-flex text-sm opacity-70 hover:opacity-100 transition"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition"
         >
-          ← Back to {sport === "college-football" ? "CFB" : "NFL"} scoreboard
+          <span className="text-lg leading-none">←</span>
+          Back to {sport === "college-football" ? "CFB" : "NFL"} scoreboard
         </Link>
-        <div className="text-xs opacity-70 text-right">
+        <div className="text-xs text-slate-400 text-right">
           {headerDate && (
             <span>{headerDate.toLocaleString(undefined, {
+              weekday: "short",
               month: "short",
               day: "numeric",
               hour: "numeric",
               minute: "2-digit",
             })}</span>
           )}
-          {headerDate && statusText && <span> • </span>}
-          {statusText && <span>{statusText}</span>}
+          {venue && (
+            <>
+              <span className="mx-1.5 opacity-50">•</span>
+              <span>{venue}</span>
+            </>
+          )}
         </div>
       </div>
 
       {/* Main bento: left stack vs right stack */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
         {/* LEFT COLUMN */}
         <div className="space-y-4">
           {/* ESPN-style game header card */}
-          <div className="card flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-6">
-              <TeamBlock competitor={away} align="left" />
-              <div className="flex flex-col items-center min-w-[120px]">
-                {clockQuarterLine && (
-                  <div className="text-xs font-semibold mb-1">
+          <div className="card p-5">
+            {/* Status badge */}
+            {statusText && (
+              <div className="flex justify-center mb-3">
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+                  statusText.toLowerCase().includes("final")
+                    ? "bg-slate-700 text-slate-300"
+                    : statusText.toLowerCase().includes("progress") || clockQuarterLine
+                    ? "bg-green-900/50 text-green-400"
+                    : "bg-slate-800 text-slate-400"
+                }`}>
+                  {statusText}
+                </span>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-4">
+              <TeamBlock
+                competitor={away}
+                align="left"
+                hasPossession={possessionTeamSide === "away"}
+              />
+
+              <div className="flex flex-col items-center min-w-[130px]">
+                {clockQuarterLine && !statusText.toLowerCase().includes("final") && (
+                  <div className="text-xs font-medium text-slate-300 mb-1.5">
                     {clockQuarterLine}
                   </div>
                 )}
-                <div className="text-2xl font-semibold leading-none mb-1">
-                  {(away?.score ?? "-")}{" "}
-                  <span className="opacity-60 text-base">:</span>{" "}
+                <div className="text-3xl font-bold leading-none tracking-tight">
+                  {(away?.score ?? "-")}
+                  <span className="mx-2 opacity-40 text-xl">-</span>
                   {(home?.score ?? "-")}
                 </div>
                 {downDistanceLine && (
-                  <div className="text-[11px] opacity-80">
+                  <div className={`mt-2 text-[11px] flex items-center justify-center gap-1.5 ${
+                    isRedZone ? "text-red-400 font-medium" : "text-slate-400"
+                  }`}>
+                    {isRedZone && (
+                      <span
+                        className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse"
+                        title="Red Zone"
+                      />
+                    )}
                     {downDistanceLine}
                   </div>
                 )}
               </div>
-              <TeamBlock competitor={home} align="right" />
+
+              <TeamBlock
+                competitor={home}
+                align="right"
+                hasPossession={possessionTeamSide === "home"}
+              />
             </div>
           </div>
 
@@ -167,6 +223,7 @@ export default function Game() {
             winProbability={data.winProbability}
             homeTeam={homeName}
             awayTeam={awayName}
+            gameStatus={statusText.toLowerCase().includes("final") ? "final" : undefined}
           />
           <TeamStats teamStats={data.teamStats} data={data.teamStats} />
         </div>
@@ -175,14 +232,22 @@ export default function Game() {
   );
 }
 
-function TeamBlock({ competitor, align }: { competitor: any; align: "left" | "right" }) {
+function TeamBlock({
+  competitor,
+  align,
+  hasPossession = false,
+}: {
+  competitor: any;
+  align: "left" | "right";
+  hasPossession?: boolean;
+}) {
   if (!competitor) {
     return (
-      <div className="flex items-center gap-3 opacity-40">
-        <div className="w-10 h-10 rounded-full bg-slate-800" />
+      <div className="flex items-center gap-3 opacity-40 flex-1">
+        <div className="w-12 h-12 rounded-full bg-slate-800" />
         <div className={align === "right" ? "text-right" : ""}>
           <div className="font-semibold leading-tight">Team</div>
-          <div className="text-xs opacity-60">—</div>
+          <div className="text-xs opacity-60">-</div>
         </div>
       </div>
     );
@@ -191,33 +256,52 @@ function TeamBlock({ competitor, align }: { competitor: any; align: "left" | "ri
   const team = competitor.team ?? {};
   const containerClass =
     align === "right"
-      ? "flex items-center gap-3 justify-end text-right"
-      : "flex items-center gap-3";
+      ? "flex items-center gap-3 justify-end text-right flex-1"
+      : "flex items-center gap-3 flex-1";
+
+  // Possession indicator - subtle amber dot
+  const PossessionIndicator = () => (
+    <span
+      className="inline-block w-2 h-2 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50"
+      title="Has possession"
+    />
+  );
 
   return (
     <div className={containerClass}>
-      {align === "left" && team.logo && (
-        <img
-          src={team.logo}
-          alt={team.name ?? "Team logo"}
-          className="w-10 h-10 rounded-full"
-        />
+      {align === "left" && (
+        <>
+          {hasPossession && <PossessionIndicator />}
+          {team.logo && (
+            <img
+              src={team.logo}
+              alt={team.name ?? "Team logo"}
+              className="w-12 h-12 rounded-full object-contain bg-slate-800/50"
+            />
+          )}
+        </>
       )}
-      <div>
-        <div className="font-semibold leading-tight">
-          {team.name ?? "Team"}
+      <div className={align === "right" ? "order-first" : ""}>
+        <div className={`font-semibold leading-tight flex items-center gap-1.5 ${
+          align === "right" ? "justify-end" : ""
+        }`}>
+          {align === "right" && hasPossession && <PossessionIndicator />}
+          <span>{team.name ?? "Team"}</span>
         </div>
-        <div className="text-xs opacity-60">
-          {team.record ?? ""}
-          {team.record && competitor.homeAway === "home" ? " • Home" : ""}
-          {team.record && competitor.homeAway === "away" ? " • Away" : ""}
+        <div className="text-xs text-slate-400 mt-0.5">
+          {team.record && <span>{team.record}</span>}
+          {team.record && (
+            <span className="opacity-60">
+              {competitor.homeAway === "home" ? " • Home" : " • Away"}
+            </span>
+          )}
         </div>
       </div>
       {align === "right" && team.logo && (
         <img
           src={team.logo}
           alt={team.name ?? "Team logo"}
-          className="w-10 h-10 rounded-full"
+          className="w-12 h-12 rounded-full object-contain bg-slate-800/50"
         />
       )}
     </div>
