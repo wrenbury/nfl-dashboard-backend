@@ -14,7 +14,7 @@ def scoreboard(sport: str, date: Optional[str] = None, week: Optional[int] = Non
     params = {}
     if date:
         params["dates"] = date  # YYYYMMDD
-    if week and sport != "nfl":
+    if week:
         params["week"] = week
     key = f"espn:scoreboard:{sport}:{date}:{week}"
     if (v := cache.get(key)) is not None:
@@ -22,6 +22,20 @@ def scoreboard(sport: str, date: Optional[str] = None, week: Optional[int] = Non
     url = f"{_base(sport)}/scoreboard"
     if params:
         url += f"?{urlencode(params)}"
+    with client() as c:
+        r = c.get(url)
+        r.raise_for_status()
+        data = r.json()
+        cache.set(key, data)
+        return data
+
+
+def calendar(sport: str) -> Dict[str, Any]:
+    """Get the calendar/weeks information for the current season."""
+    key = f"espn:calendar:{sport}"
+    if (v := cache.get(key)) is not None:
+        return v
+    url = f"{_base(sport)}/scoreboard"
     with client() as c:
         r = c.get(url)
         r.raise_for_status()

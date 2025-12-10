@@ -35,6 +35,7 @@ class GameSummary(BaseModel):
 
 class BoxScoreCategory(BaseModel):
     title: str
+    headers: List[str] = []
     rows: List[List[str]]
 
 
@@ -69,3 +70,16 @@ class GameDetails(BaseModel):
     winProbability: Optional[list] = None
     # NEW, backwards-compatible extension
     situation: Optional[GameSituation] = None
+
+
+class Week(BaseModel):
+    number: int
+    label: str  # e.g. "Week 14"
+    startDate: str  # e.g. "2025-12-03"
+    endDate: str  # e.g. "2025-12-09"
+
+
+class BoxScoreCategoryWithHeaders(BaseModel):
+    title: str
+    headers: List[str]
+    rows: List[List[str]]
