@@ -33,6 +33,28 @@ def _convert_utc_to_et_date(utc_timestamp: str) -> str:
         return utc_timestamp.split("T")[0]
 
 
+def _convert_utc_timestamp_to_et(utc_timestamp: str) -> str:
+    """
+    Convert ESPN's UTC timestamp to ET timezone, keeping full ISO format.
+    This is used for game startTime so the frontend can extract the correct date.
+
+    Example: "2025-12-06T01:20Z" (Fri 1:20 AM UTC) -> "2025-12-05T20:20:00-05:00" (Thu 8:20 PM ET)
+    """
+    if not utc_timestamp:
+        return utc_timestamp
+
+    try:
+        # Parse UTC timestamp (handle both "Z" and "+00:00" formats)
+        utc_dt = datetime.fromisoformat(utc_timestamp.replace("Z", "+00:00"))
+        # Convert to ET
+        et_dt = utc_dt.astimezone(ZoneInfo("America/New_York"))
+        # Return as ISO format string
+        return et_dt.isoformat()
+    except Exception:
+        # Fallback to original timestamp if parsing fails
+        return utc_timestamp
+
+
 def get_nfl_weeks() -> List[Week]:
     """
     Get the NFL season weeks from ESPN calendar data.
@@ -158,11 +180,17 @@ def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
         comp = e["competitions"][0]["competitors"]
         status = e["status"]["type"]["description"]
         venue = e["competitions"][0].get("venue", {}).get("fullName")
+
+        # Convert game start time from UTC to ET for correct date grouping in frontend
+        start_time = e.get("date")
+        if start_time and sport == "nfl":
+            start_time = _convert_utc_timestamp_to_et(start_time)
+
         out.append(
             GameSummary(
                 id=e["id"],
                 sport=sport,
-                startTime=e.get("date"),
+                startTime=start_time,
                 status=status,
                 venue=venue,
                 competitors=[
@@ -347,6 +375,10 @@ def _build_cfb_scoreboard_from_cfbd(
             or g.get("game_date")
             or ""
         )
+
+        # Convert to ET timezone for correct date grouping in frontend
+        if start_time:
+            start_time = _convert_utc_timestamp_to_et(start_time)
 
         # Keep away/home ordering consistent with ESPN mapping (away first).
         competitors = [away_comp, home_comp]
