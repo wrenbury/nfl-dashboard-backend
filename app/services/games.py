@@ -111,6 +111,10 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
                 or ""
             )
 
+            # Extract column headers from ESPN data
+            raw_labels = cat.get("labels") or cat.get("keys") or []
+            headers = ["Player"] + [str(lbl) for lbl in raw_labels]
+
             rows: List[List[str]] = []
             for athlete in cat.get("athletes") or []:
                 athlete_info = athlete.get("athlete") or {}
@@ -126,7 +130,11 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
 
             if rows:
                 title = f"{team_name} {cat_title}".strip()
-                boxscore_categories.append(BoxScoreCategory(title=title, rows=rows))
+                boxscore_categories.append(BoxScoreCategory(
+                    title=title,
+                    headers=headers if len(headers) > 1 else None,
+                    rows=rows
+                ))
 
     # --- Team stats --------------------------------------------------------------
     team_stats_categories: List[BoxScoreCategory] = []

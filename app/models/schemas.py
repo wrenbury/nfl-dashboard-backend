@@ -35,6 +35,7 @@ class GameSummary(BaseModel):
 
 class BoxScoreCategory(BaseModel):
     title: str
+    headers: Optional[List[str]] = None
     rows: List[List[str]]
 
 

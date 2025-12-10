@@ -300,38 +300,53 @@ export default function WinProb({
             />
 
             <Tooltip
-              contentStyle={{
-                backgroundColor: "#1e293b",
-                border: "1px solid #334155",
-                borderRadius: "8px",
-                fontSize: "12px",
-              }}
-              labelStyle={{ color: "#94a3b8" }}
-              formatter={(value: any, name: string) => {
-                const v = Number(value).toFixed(1);
-                if (name === "home") {
-                  return [`${v}%`, `${homeTeam} WP`];
-                }
-                return [`${v}%`, `${awayTeam} WP`];
-              }}
-              labelFormatter={(_, payload) => {
-                const point = payload?.[0]?.payload;
-                if (!point) return "Win Probability";
-                const q = point.q;
-                let qLabel = "";
-                if (q === 1) qLabel = "1st Quarter";
-                else if (q === 2) qLabel = "2nd Quarter";
-                else if (q === 3) qLabel = "3rd Quarter";
-                else if (q === 4) qLabel = "4th Quarter";
-                else if (q && q > 4) qLabel = "Overtime";
+              content={({ active, payload }) => {
+                if (!active || !payload?.length) return null;
+                const point = payload[0]?.payload;
+                if (!point) return null;
 
-                // Calculate approximate clock from t value
+                const homeWp = point.home;
+                const awayWp = point.away;
+                const q = point.q;
+
+                let qLabel = "";
+                if (q === 1) qLabel = "1st Qtr";
+                else if (q === 2) qLabel = "2nd Qtr";
+                else if (q === 3) qLabel = "3rd Qtr";
+                else if (q === 4) qLabel = "4th Qtr";
+                else if (q && q > 4) qLabel = "OT";
+
+                let clockLabel = "";
                 if (point.secondsLeft != null) {
                   const mins = Math.floor(point.secondsLeft / 60);
                   const secs = point.secondsLeft % 60;
-                  return `${qLabel} - ${mins}:${secs.toString().padStart(2, "0")}`;
+                  clockLabel = `${mins}:${secs.toString().padStart(2, "0")}`;
                 }
-                return qLabel || "Win Probability";
+
+                return (
+                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-xl">
+                    {/* Time header */}
+                    <div className="text-xs text-slate-400 mb-2 pb-2 border-b border-slate-700">
+                      {qLabel && clockLabel ? `${qLabel} - ${clockLabel}` : qLabel || "Win Probability"}
+                    </div>
+
+                    {/* Win probabilities */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-xs text-slate-300">{homeTeam}</span>
+                        <span className={`text-sm font-semibold ${homeWp > 50 ? "text-blue-400" : "text-slate-400"}`}>
+                          {homeWp.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-xs text-slate-300">{awayTeam}</span>
+                        <span className={`text-sm font-semibold ${awayWp > 50 ? "text-blue-400" : "text-slate-400"}`}>
+                          {awayWp.toFixed(1)}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
               }}
             />
           </AreaChart>
