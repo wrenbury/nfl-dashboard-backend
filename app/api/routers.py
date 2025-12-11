@@ -24,10 +24,28 @@ def get_current_week():
         raise HTTPException(status_code=502, detail=str(e))
 
 
-@router.get("/scoreboard/{sport}", response_model=list[GameSummary])
-def get_scoreboard(sport: Sport, date: str | None = None, week: int | None = None):
+@router.get("/cfb/weeks")
+def get_cfb_weeks(year: int = 2025):
+    """Get all CFB season weeks for a given year."""
     try:
-        return sb.get_scoreboard(sport, date=date, week=week)
+        return sb.get_cfb_weeks(year)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/cfb/conferences")
+def get_cfb_conferences():
+    """Get list of FBS conferences."""
+    try:
+        return sb.get_cfb_conferences()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/scoreboard/{sport}", response_model=list[GameSummary])
+def get_scoreboard(sport: Sport, date: str | None = None, week: int | None = None, conference: str | None = None):
+    try:
+        return sb.get_scoreboard(sport, date=date, week=week, conference=conference)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 
