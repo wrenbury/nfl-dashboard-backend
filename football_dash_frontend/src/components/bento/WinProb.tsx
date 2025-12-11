@@ -305,22 +305,44 @@ export default function WinProb({
                 const point = payload[0]?.payload;
                 if (!point) return null;
 
-                const homeWP = point.home.toFixed(1);
-                const awayWP = point.away.toFixed(1);
+                const homeWp = point.home;
+                const awayWp = point.away;
+                const q = point.q;
+
+                let qLabel = "";
+                if (q === 1) qLabel = "1st Qtr";
+                else if (q === 2) qLabel = "2nd Qtr";
+                else if (q === 3) qLabel = "3rd Qtr";
+                else if (q === 4) qLabel = "4th Qtr";
+                else if (q && q > 4) qLabel = "OT";
+
+                let clockLabel = "";
+                if (point.secondsLeft != null) {
+                  const mins = Math.floor(point.secondsLeft / 60);
+                  const secs = point.secondsLeft % 60;
+                  clockLabel = `${mins}:${secs.toString().padStart(2, "0")}`;
+                }
 
                 return (
-                  <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg px-4 py-3 shadow-xl">
-                    <div className="text-xs text-slate-400 mb-2 font-medium">
-                      Win Probability
+                  <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-xl">
+                    {/* Time header */}
+                    <div className="text-xs text-slate-400 mb-2 pb-2 border-b border-slate-700">
+                      {qLabel && clockLabel ? `${qLabel} - ${clockLabel}` : qLabel || "Win Probability"}
                     </div>
+
+                    {/* Win probabilities */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-sm text-slate-300">{homeTeam} WP</span>
-                        <span className="text-sm font-bold text-blue-400">{homeWP}%</span>
+                        <span className="text-xs text-slate-300">{homeTeam}</span>
+                        <span className={`text-sm font-semibold ${homeWp > 50 ? "text-blue-400" : "text-slate-400"}`}>
+                          {homeWp.toFixed(1)}%
+                        </span>
                       </div>
                       <div className="flex items-center justify-between gap-4">
-                        <span className="text-sm text-slate-300">{awayTeam} WP</span>
-                        <span className="text-sm font-bold text-red-400">{awayWP}%</span>
+                        <span className="text-xs text-slate-300">{awayTeam}</span>
+                        <span className={`text-sm font-semibold ${awayWp > 50 ? "text-blue-400" : "text-slate-400"}`}>
+                          {awayWp.toFixed(1)}%
+                        </span>
                       </div>
                     </div>
                   </div>
