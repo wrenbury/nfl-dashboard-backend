@@ -286,6 +286,14 @@ def _build_cfb_scoreboard_from_cfbd(
         if not isinstance(g, dict):
             continue
 
+        # Filter to only FBS and FCS games (exclude D-II and D-III)
+        home_class = (g.get("homeClassification") or "").lower()
+        away_class = (g.get("awayClassification") or "").lower()
+
+        # Skip if either team is D-II, D-III, or unknown
+        if home_class in ("ii", "iii", "") or away_class in ("ii", "iii", ""):
+            continue
+
         # Game id
         game_id = str(g.get("id") or g.get("game_id") or "")
         if not game_id:
@@ -344,6 +352,10 @@ def _build_cfb_scoreboard_from_cfbd(
         home_logo = get_cfb_logo(str(home_team_name))
         away_logo = get_cfb_logo(str(away_team_name))
 
+        # Extract rankings if available (CFBD includes rankings in some responses)
+        home_rank = g.get("homeRank") or g.get("home_rank")
+        away_rank = g.get("awayRank") or g.get("away_rank")
+
         home_comp = Competitor(
             team=Team(
                 id=str(home_team_id),
@@ -353,7 +365,7 @@ def _build_cfb_scoreboard_from_cfbd(
                 color=None,
                 logo=home_logo,
                 record=None,
-                rank=None,
+                rank=home_rank,
             ),
             homeAway="home",
             score=home_points,
@@ -368,7 +380,7 @@ def _build_cfb_scoreboard_from_cfbd(
                 color=None,
                 logo=away_logo,
                 record=None,
-                rank=None,
+                rank=away_rank,
             ),
             homeAway="away",
             score=away_points,
@@ -446,29 +458,48 @@ def get_cfb_weeks(year: int) -> List[Week]:
 
 def get_cfb_conferences() -> List[dict]:
     """
-    Get list of FBS conferences from CFBD.
+    Get list of FBS and FCS conferences from CFBD.
     Returns a list of conference objects with id, name, abbreviation.
+    Includes special options like "Top 25" and "FBS".
     """
     raw = cfbd.conferences()
 
     if not isinstance(raw, list):
         return []
 
-    # Filter to only FBS conferences and format them
-    conferences = []
+    # Add special filter options
+    conferences = [
+        {"id": 0, "name": "Top 25", "abbreviation": "Top 25"},
+        {"id": 1, "name": "FBS", "abbreviation": "FBS"},
+    ]
+
+    # Allowed conference list based on user requirements
+    allowed_conferences = {
+        "ACC", "American", "Big 12", "Big Ten", "Big 12",
+        "CUSA", "FBS Indep.", "MAC", "Mountain West", "Pac-12",
+        "SEC", "Sun Belt", "FCS"
+    }
+
+    # Filter to only FBS and FCS conferences in the allowed list
     for conf in raw:
         if not isinstance(conf, dict):
             continue
 
-        # Only include FBS conferences (classification == "fbs")
-        if conf.get("classification") != "fbs":
+        classification = (conf.get("classification") or "").lower()
+        conf_name = conf.get("name") or ""
+        conf_abbr = conf.get("abbreviation") or ""
+
+        # Only include FBS and FCS conferences
+        if classification not in ("fbs", "fcs"):
             continue
 
-        conferences.append({
-            "id": conf.get("id"),
-            "name": conf.get("name"),
-            "abbreviation": conf.get("abbreviation"),
-        })
+        # Check if conference is in allowed list
+        if conf_name in allowed_conferences or conf_abbr in allowed_conferences:
+            conferences.append({
+                "id": conf.get("id"),
+                "name": conf_name,
+                "abbreviation": conf_abbr,
+            })
 
     return conferences
 
