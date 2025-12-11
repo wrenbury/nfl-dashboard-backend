@@ -74,9 +74,10 @@ class GameDetails(BaseModel):
 
 class Week(BaseModel):
     number: int
-    label: str  # e.g. "Week 14"
+    label: str  # e.g. "Week 14" or "WILD CARD"
     startDate: str  # e.g. "2025-12-03"
     endDate: str  # e.g. "2025-12-09"
+    seasonType: int = 2  # 1=preseason, 2=regular, 3=postseason
 
 
 class BoxScoreCategoryWithHeaders(BaseModel):

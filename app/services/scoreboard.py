@@ -73,7 +73,6 @@ def get_nfl_weeks() -> List[Week]:
     calendar = leagues[0].get("calendar", [])
 
     # Mapping for playoff labels based on typical NFL playoff structure
-    # Playoff weeks are typically 18-21 (or labeled differently by ESPN)
     PLAYOFF_LABELS = {
         "Wild Card": "WILD CARD",
         "Wildcard": "WILD CARD",
@@ -89,7 +88,11 @@ def get_nfl_weeks() -> List[Week]:
     }
 
     # Process all calendar sections (regular season and postseason)
-    for cal_section in calendar:
+    for section_idx, cal_section in enumerate(calendar):
+        # Determine season type based on calendar section index
+        # ESPN structure: [0]=preseason, [1]=regular, [2]=postseason
+        season_type = section_idx + 1  # 1=preseason, 2=regular, 3=postseason
+
         # Handle both list of entries and list of sections with entries
         entries = cal_section if isinstance(cal_section, list) else cal_section.get("entries", [])
 
@@ -109,18 +112,20 @@ def get_nfl_weeks() -> List[Week]:
                 if end_date:
                     end_date = _convert_utc_to_et_date(end_date)
 
-                # Normalize playoff labels
+                # Normalize playoff labels for postseason
                 normalized_label = label
-                for playoff_key, playoff_value in PLAYOFF_LABELS.items():
-                    if playoff_key.lower() in label.lower():
-                        normalized_label = playoff_value
-                        break
+                if season_type == 3:  # Postseason
+                    for playoff_key, playoff_value in PLAYOFF_LABELS.items():
+                        if playoff_key.lower() in label.lower():
+                            normalized_label = playoff_value
+                            break
 
                 weeks.append(Week(
                     number=int(week_num),
                     label=normalized_label,
                     startDate=start_date,
                     endDate=end_date,
+                    seasonType=season_type,
                 ))
 
     return weeks
@@ -400,7 +405,16 @@ def _build_cfb_scoreboard_from_cfbd(
 def get_scoreboard(sport: Sport, date: str | None, week: int | None):
     """Route NFL to ESPN, CFB to CFBD."""
     if sport == "nfl":
-        raw = espn.scoreboard(sport, date=date, week=week)
+        # Look up season type for the requested week
+        seasontype = None
+        if week is not None:
+            weeks = get_nfl_weeks()
+            for w in weeks:
+                if w.number == week:
+                    seasontype = w.seasonType
+                    break
+
+        raw = espn.scoreboard(sport, date=date, week=week, seasontype=seasontype)
         return parse_scoreboard(sport, raw)
 
     if sport == "college-football":

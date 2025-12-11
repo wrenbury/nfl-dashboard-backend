@@ -114,7 +114,7 @@ export default function WeekSelector({
                 key={week.number}
                 ref={isSelected ? selectedRef : null}
                 onClick={() => onWeekChange(week.number)}
-                className={`flex flex-col items-center px-4 py-2 rounded-lg whitespace-nowrap transition min-w-[100px] ${
+                className={`flex flex-col items-center px-4 py-2 rounded-lg whitespace-nowrap transition ${
                   isSelected
                     ? "bg-slate-700 text-white"
                     : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
