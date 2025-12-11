@@ -94,7 +94,18 @@ function formatDateHeader(dateStr: string): string {
 export default function Scoreboard({ sport }: Props) {
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedConference, setSelectedConference] = useState<string>("");
-  const currentYear = new Date().getFullYear();
+
+  // Determine CFB season year (Aug-Dec = current year, Jan-July = previous year)
+  const getCurrentCFBYear = () => {
+    const now = new Date();
+    const month = now.getMonth(); // 0-11
+    const year = now.getFullYear();
+    // CFB season runs Aug (month 7) through Jan (month 0)
+    // If Jan-July, use previous year's season
+    return month < 7 ? year - 1 : year;
+  };
+
+  const [selectedYear, setSelectedYear] = useState<number>(getCurrentCFBYear());
 
   // Fetch NFL weeks for the week selector
   const { data: nflWeeksData } = useSWR(
@@ -105,7 +116,7 @@ export default function Scoreboard({ sport }: Props) {
 
   // Fetch CFB weeks for the week selector
   const { data: cfbWeeksData } = useSWR(
-    sport === "college-football" ? API.cfbWeeks(currentYear) : null,
+    sport === "college-football" ? API.cfbWeeks(selectedYear) : null,
     fetcher,
     { revalidateOnFocus: false }
   );
@@ -127,7 +138,17 @@ export default function Scoreboard({ sport }: Props) {
   // Get appropriate weeks data based on sport
   const weeksData = sport === "nfl" ? nflWeeksData : cfbWeeksData;
   const weeks: Week[] = Array.isArray(weeksData) ? weeksData : [];
-  const conferences: Conference[] = Array.isArray(conferencesData) ? conferencesData : [];
+
+  // Filter conferences to only allowed ones
+  const allowedConferences = [
+    "Top 25", "FBS", "ACC", "American", "Big 12", "Big Ten",
+    "CUSA", "FBS Indep.", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "FCS"
+  ];
+
+  const allConferences: Conference[] = Array.isArray(conferencesData) ? conferencesData : [];
+  const conferences = allConferences.filter(conf =>
+    allowedConferences.includes(conf.name) || allowedConferences.includes(conf.abbreviation)
+  );
 
   // Set initial week when data loads
   useEffect(() => {
@@ -138,6 +159,13 @@ export default function Scoreboard({ sport }: Props) {
       setSelectedWeek(weeks[weeks.length - 1].number);
     }
   }, [sport, currentWeekData, weeks, selectedWeek]);
+
+  // Reset week selection when year changes
+  useEffect(() => {
+    if (sport === "college-football") {
+      setSelectedWeek(null);
+    }
+  }, [sport, selectedYear]);
 
   // Build endpoint based on sport
   const endpoint =
@@ -216,7 +244,11 @@ export default function Scoreboard({ sport }: Props) {
     );
   }
 
-  // College football view with week selector and conference filter
+  // College football view with week selector, year selector, and conference filter
+  // Generate year options (current season and previous 5 years)
+  const currentCFBYear = getCurrentCFBYear();
+  const yearOptions = Array.from({ length: 6 }, (_, i) => currentCFBYear - i);
+
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">College Football Scoreboard</h1>
@@ -230,27 +262,49 @@ export default function Scoreboard({ sport }: Props) {
         />
       )}
 
-      {/* Conference filter */}
-      {conferences.length > 0 && (
+      {/* Filters: Year and Conference */}
+      <div className="flex items-center gap-6 flex-wrap">
+        {/* Year selector */}
         <div className="flex items-center gap-3">
-          <label htmlFor="conference-filter" className="text-sm font-medium text-slate-300">
-            Conference:
+          <label htmlFor="year-selector" className="text-sm font-medium text-slate-300">
+            Season:
           </label>
           <select
-            id="conference-filter"
-            value={selectedConference}
-            onChange={(e) => setSelectedConference(e.target.value)}
+            id="year-selector"
+            value={selectedYear}
+            onChange={(e) => setSelectedYear(Number(e.target.value))}
             className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
           >
-            <option value="">All Conferences</option>
-            {conferences.map((conf) => (
-              <option key={conf.id} value={conf.abbreviation}>
-                {conf.name}
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
               </option>
             ))}
           </select>
         </div>
-      )}
+
+        {/* Conference filter */}
+        {conferences.length > 0 && (
+          <div className="flex items-center gap-3">
+            <label htmlFor="conference-filter" className="text-sm font-medium text-slate-300">
+              Conference:
+            </label>
+            <select
+              id="conference-filter"
+              value={selectedConference}
+              onChange={(e) => setSelectedConference(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            >
+              <option value="">All Conferences</option>
+              {conferences.map((conf) => (
+                <option key={conf.id} value={conf.abbreviation}>
+                  {conf.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       {isLoading && (
         <div className="text-sm opacity-80">Loading scoreboard...</div>
