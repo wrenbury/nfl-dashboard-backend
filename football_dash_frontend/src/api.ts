@@ -25,6 +25,7 @@ export type Week = {
   label: string;
   startDate: string;
   endDate: string;
+  seasonType: number; // 1=preseason, 2=regular, 3=postseason
 };
 
 export const API = {
