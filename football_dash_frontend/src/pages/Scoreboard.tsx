@@ -6,7 +6,6 @@ import { API } from "../api";
 import type { Week, Conference } from "../api";
 import WeekSelector from "../components/WeekSelector";
 import NFLGameCard from "../components/NFLGameCard";
-import GameList from "../components/GameList";
 
 type Sport = "nfl" | "college-football";
 
@@ -139,16 +138,8 @@ export default function Scoreboard({ sport }: Props) {
   const weeksData = sport === "nfl" ? nflWeeksData : cfbWeeksData;
   const weeks: Week[] = Array.isArray(weeksData) ? weeksData : [];
 
-  // Filter conferences to only allowed ones
-  const allowedConferences = [
-    "Top 25", "FBS", "ACC", "American", "Big 12", "Big Ten",
-    "CUSA", "FBS Indep.", "MAC", "Mountain West", "Pac-12", "SEC", "Sun Belt", "FCS"
-  ];
-
-  const allConferences: Conference[] = Array.isArray(conferencesData) ? conferencesData : [];
-  const conferences = allConferences.filter(conf =>
-    allowedConferences.includes(conf.name) || allowedConferences.includes(conf.abbreviation)
-  );
+  // Conferences are already filtered by backend
+  const conferences: Conference[] = Array.isArray(conferencesData) ? conferencesData : [];
 
   // Set initial week when data loads
   useEffect(() => {
@@ -333,8 +324,10 @@ export default function Scoreboard({ sport }: Props) {
                 <h2 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">
                   {formatDateHeader(dateStr)}
                 </h2>
-                <div className="space-y-3">
-                  <GameList games={dateGames} />
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-2">
+                  {dateGames.map((game: any) => (
+                    <NFLGameCard key={game.id} game={game} />
+                  ))}
                 </div>
               </div>
             );
