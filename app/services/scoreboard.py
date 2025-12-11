@@ -375,8 +375,10 @@ def _build_cfb_scoreboard_from_cfbd(
         )
 
         # CFBD may use different fields for time; fall back to empty string if missing.
+        # CFBD API v2 uses camelCase: startDate
         start_time = (
-            g.get("start_date")
+            g.get("startDate")       # CFBD v2 camelCase
+            or g.get("start_date")   # Legacy snake_case
             or g.get("startTime")
             or g.get("start_time")
             or g.get("game_date")
