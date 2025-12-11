@@ -135,7 +135,7 @@ export default function Game() {
       {/* Top meta row: back link + date/status (ESPN-style) */}
       <div className="flex items-center justify-between gap-4">
         <Link
-          to={sport === "college-football" ? "/college-football" : "/nfl"}
+          to={sport === "college-football" ? "/cfb" : "/nfl"}
           className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition"
         >
           <span className="text-lg leading-none">←</span>
@@ -361,6 +361,11 @@ function TeamBlock({
           align === "right" ? "justify-end" : ""
         }`}>
           {align === "right" && hasPossession && <PossessionIndicator />}
+          {team.rank && (
+            <span className="text-xs font-bold text-amber-400 px-1.5 py-0.5 bg-amber-400/10 rounded">
+              #{team.rank}
+            </span>
+          )}
           <span>{team.name ?? "Team"}</span>
         </div>
         <div className="text-xs text-slate-400 mt-0.5">
