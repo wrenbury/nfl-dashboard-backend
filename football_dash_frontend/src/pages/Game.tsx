@@ -32,11 +32,14 @@ const fetcher = async (url: string) => {
 };
 
 export default function Game() {
-  const { sport = "nfl", id = "" } = useParams();
+  const { sport: urlSport = "nfl", id = "" } = useParams();
   const [activeTab, setActiveTab] = useState<Tab>("gamecast");
 
+  // Map URL sport param to API sport param
+  const sport: Sport = urlSport === "cfb" ? "college-football" : "nfl";
+
   const { data, error, isLoading } = useSWR<GameDetails>(
-    id ? API.game(sport as Sport, id) : null,
+    id ? API.game(sport, id) : null,
     fetcher
   );
 
