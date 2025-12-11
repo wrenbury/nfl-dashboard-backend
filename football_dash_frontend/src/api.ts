@@ -28,14 +28,21 @@ export type Week = {
   seasonType: number; // 1=preseason, 2=regular, 3=postseason
 };
 
+export type Conference = {
+  id: number;
+  name: string;
+  abbreviation: string;
+};
+
 export const API = {
   scoreboard(
     sport: "nfl" | "college-football",
-    opts: { date?: string; week?: number } = {}
+    opts: { date?: string; week?: number; conference?: string } = {}
   ): string {
     const params = new URLSearchParams();
     if (opts.date) params.set("date", opts.date);
     if (typeof opts.week === "number") params.set("week", String(opts.week));
+    if (opts.conference) params.set("conference", opts.conference);
     const qs = params.toString();
     const path = `/api/scoreboard/${sport}${qs ? `?${qs}` : ""}`;
     return buildUrl(path);
@@ -52,5 +59,13 @@ export const API = {
 
   nflCurrentWeek(): string {
     return buildUrl("/api/nfl/current-week");
+  },
+
+  cfbWeeks(year: number = 2025): string {
+    return buildUrl(`/api/cfb/weeks?year=${year}`);
+  },
+
+  cfbConferences(): string {
+    return buildUrl("/api/cfb/conferences");
   },
 };
