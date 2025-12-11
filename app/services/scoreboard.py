@@ -243,6 +243,7 @@ def _pick_score(*values: object) -> int:
 def _build_cfb_scoreboard_from_cfbd(
     date: str | None,
     week: int | None,
+    conference: str | None = None,
 ) -> List[GameSummary]:
     """
     Build a GameSummary-style scoreboard for college football using CFBD.
@@ -267,7 +268,8 @@ def _build_cfb_scoreboard_from_cfbd(
         return []
 
     # CFBD /games -> "Games and results" (includes points in v2).
-    raw_games = cfbd.games(year=year, week=cfbd_week, seasonType="regular") or []
+    # Pass conference filter to only show games from selected conference
+    raw_games = cfbd.games(year=year, week=cfbd_week, seasonType="regular", conference=conference) or []
     out: List[GameSummary] = []
 
     STATUS_LABELS = {
@@ -402,7 +404,74 @@ def _build_cfb_scoreboard_from_cfbd(
     return out
 
 
-def get_scoreboard(sport: Sport, date: str | None, week: int | None):
+def get_cfb_weeks(year: int) -> List[Week]:
+    """
+    Get CFB season weeks from CFBD calendar API.
+    Returns a list of Week objects for the given season.
+    """
+    raw = cfbd.calendar(year)
+    weeks: List[Week] = []
+
+    if not isinstance(raw, list):
+        return weeks
+
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+
+        week_num = entry.get("week")
+        season_type = entry.get("seasonType", "regular")
+        start_date = entry.get("firstGameStart") or entry.get("startDate", "")
+        end_date = entry.get("lastGameStart") or entry.get("endDate", "")
+
+        if week_num is not None and season_type == "regular":
+            # Convert timestamps to date strings if needed
+            if start_date and "T" in start_date:
+                start_date = _convert_utc_to_et_date(start_date)
+            if end_date and "T" in end_date:
+                end_date = _convert_utc_to_et_date(end_date)
+
+            weeks.append(Week(
+                number=int(week_num),
+                label=f"Week {week_num}",
+                startDate=start_date,
+                endDate=end_date,
+                seasonType=2,  # Regular season
+            ))
+
+    return weeks
+
+
+def get_cfb_conferences() -> List[dict]:
+    """
+    Get list of FBS conferences from CFBD.
+    Returns a list of conference objects with id, name, abbreviation.
+    """
+    raw = cfbd.conferences()
+
+    if not isinstance(raw, list):
+        return []
+
+    # Filter to only FBS conferences and format them
+    conferences = []
+    for conf in raw:
+        if not isinstance(conf, dict):
+            continue
+
+        # Only include FBS conferences (classification == "fbs")
+        if conf.get("classification") != "fbs":
+            continue
+
+        conferences.append({
+            "id": conf.get("id"),
+            "name": conf.get("name"),
+            "abbreviation": conf.get("abbreviation"),
+        })
+
+    return conferences
+
+
+def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference: str | None = None):
     """Route NFL to ESPN, CFB to CFBD."""
     if sport == "nfl":
         # Look up season type for the requested week
@@ -418,7 +487,7 @@ def get_scoreboard(sport: Sport, date: str | None, week: int | None):
         return parse_scoreboard(sport, raw)
 
     if sport == "college-football":
-        return _build_cfb_scoreboard_from_cfbd(date=date, week=week)
+        return _build_cfb_scoreboard_from_cfbd(date=date, week=week, conference=conference)
 
     # Unknown sport -> empty board (defensive default)
     return []
