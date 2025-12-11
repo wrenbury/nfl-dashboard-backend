@@ -9,6 +9,7 @@ type Team = {
     abbreviation?: string;
     logo?: string;
     record?: string;
+    rank?: number;
   };
   homeAway: "home" | "away";
   score?: number;
@@ -17,6 +18,7 @@ type Team = {
 
 type Game = {
   id: string;
+  sport: string;
   startTime: string;
   status: string;
   competitors: Team[];
@@ -57,9 +59,12 @@ export default function NFLGameCard({ game }: { game: Game }) {
     home?.score !== undefined &&
     home.score > away.score;
 
+  // Determine sport path (cfb or nfl)
+  const sportPath = game.sport === "college-football" ? "cfb" : "nfl";
+
   return (
     <Link
-      to={`/nfl/game/${game.id}`}
+      to={`/${sportPath}/game/${game.id}`}
       className="card block hover:bg-slate-800/50 transition"
     >
       <div className="flex items-center justify-between mb-2">
@@ -141,13 +146,20 @@ function TeamRow({
           <div className="w-8 h-8 rounded-full bg-slate-800 flex-shrink-0" />
         )}
         <div className="flex flex-col min-w-0">
-          <span
-            className={`font-semibold truncate ${
-              isWinner ? "text-white" : ""
-            }`}
-          >
-            {teamData.name}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {teamData.rank && (
+              <span className="text-xs font-bold text-amber-400 px-1.5 py-0.5 bg-amber-400/10 rounded">
+                #{teamData.rank}
+              </span>
+            )}
+            <span
+              className={`font-semibold truncate ${
+                isWinner ? "text-white" : ""
+              }`}
+            >
+              {teamData.name}
+            </span>
+          </div>
           {teamData.record && (
             <span className="text-xs text-slate-500">{teamData.record}</span>
           )}
