@@ -8,9 +8,12 @@ from ..models.schemas import (
     GameSummary,
     BoxScoreCategory,
     GameSituation,
+    Competitor,
+    Team,
 )
-from ..clients import espn
-from .scoreboard import _map_competitor
+from ..clients import espn, cfbd
+from .scoreboard import _map_competitor, _normalize_cfb_status, _convert_utc_timestamp_to_et
+from ..utils.cfb_logos import get_cfb_logo
 
 
 def _get_status_text(comp: Dict[str, Any], header: Dict[str, Any]) -> str:
@@ -58,9 +61,163 @@ def _extract_possession_team_id(raw_situation: Dict[str, Any]) -> str | None:
     return str(possession)
 
 
+def _cfb_game_details(event_id: str) -> GameDetails:
+    """
+    Build GameDetails for CFB using CollegeFootballData API.
+
+    Note: CFBD doesn't have all the same data as ESPN (no win probability, limited play-by-play),
+    but we can provide the basic game summary and available stats.
+    """
+    # CFBD uses integer game IDs
+    game_id = int(event_id)
+
+    # Get game info from CFBD /games endpoint
+    # We need to figure out which year/week to fetch - for now we'll try recent weeks
+    # This is a limitation of CFBD API - it doesn't have a single game endpoint like ESPN
+    # In practice, we'll need to search for the game
+    raw_game = None
+
+    # Try current year and previous year
+    from datetime import datetime
+    current_year = datetime.now().year
+
+    for year in [current_year, current_year - 1]:
+        for week in range(1, 17):  # Try all weeks
+            try:
+                games = cfbd.games(year=year, week=week, seasonType="regular")
+                if games:
+                    for g in games:
+                        if g.get("id") == game_id:
+                            raw_game = g
+                            break
+                if raw_game:
+                    break
+            except:
+                continue
+        if raw_game:
+            break
+
+    if not raw_game:
+        # Fallback: create minimal game details
+        return GameDetails(
+            summary=GameSummary(
+                id=event_id,
+                sport="college-football",
+                startTime="",
+                status="Game not found",
+                venue=None,
+                competitors=[],
+            ),
+            boxscore=[],
+            teamStats=[],
+            plays=None,
+            winProbability=None,
+            situation=None,
+        )
+
+    # Build game summary
+    home_team_name = raw_game.get("homeTeam") or raw_game.get("home_team") or "Home"
+    away_team_name = raw_game.get("awayTeam") or raw_game.get("away_team") or "Away"
+    home_team_id = raw_game.get("homeId") or raw_game.get("home_id") or home_team_name
+    away_team_id = raw_game.get("awayId") or raw_game.get("away_id") or away_team_name
+
+    home_points = raw_game.get("homePoints") or raw_game.get("home_points") or 0
+    away_points = raw_game.get("awayPoints") or raw_game.get("away_points") or 0
+
+    home_rank = raw_game.get("homeRank") or raw_game.get("home_rank")
+    away_rank = raw_game.get("awayRank") or raw_game.get("away_rank")
+
+    home_logo = get_cfb_logo(str(home_team_name))
+    away_logo = get_cfb_logo(str(away_team_name))
+
+    # Determine status
+    raw_status = raw_game.get("status") or raw_game.get("status_name")
+    completed = raw_game.get("completed", False)
+    state = _normalize_cfb_status(raw_status, completed)
+
+    STATUS_LABELS = {
+        "pre": "Scheduled",
+        "in": "In Progress",
+        "post": "Postgame",
+        "halftime": "Halftime",
+        "final": "Final",
+        "delayed": "Delayed",
+        "canceled": "Canceled",
+    }
+    status_text = STATUS_LABELS.get(state, "Scheduled")
+
+    start_time = raw_game.get("startDate") or raw_game.get("start_date") or ""
+    if start_time:
+        start_time = _convert_utc_timestamp_to_et(start_time)
+
+    venue = raw_game.get("venue") or raw_game.get("venue_name")
+
+    summary = GameSummary(
+        id=event_id,
+        sport="college-football",
+        startTime=start_time,
+        status=status_text,
+        venue=venue,
+        competitors=[
+            Competitor(
+                team=Team(
+                    id=str(away_team_id),
+                    name=str(away_team_name),
+                    nickname=None,
+                    abbreviation=None,
+                    color=None,
+                    logo=away_logo,
+                    record=None,
+                    rank=away_rank,
+                ),
+                homeAway="away",
+                score=int(away_points) if away_points else 0,
+            ),
+            Competitor(
+                team=Team(
+                    id=str(home_team_id),
+                    name=str(home_team_name),
+                    nickname=None,
+                    abbreviation=None,
+                    color=None,
+                    logo=home_logo,
+                    record=None,
+                    rank=home_rank,
+                ),
+                homeAway="home",
+                score=int(home_points) if home_points else 0,
+            ),
+        ],
+    )
+
+    # Try to get plays data from CFBD
+    plays = None
+    try:
+        plays_data = cfbd.game_details(game_id)
+        if plays_data and plays_data.get("plays"):
+            plays = plays_data["plays"]
+    except:
+        pass
+
+    # CFBD doesn't provide win probability or detailed box scores like ESPN
+    # Return minimal game details
+    return GameDetails(
+        summary=summary,
+        boxscore=[],
+        teamStats=[],
+        plays=plays,
+        winProbability=None,
+        situation=None,
+    )
+
+
 def game_details(sport: Sport, event_id: str) -> GameDetails:
     """
-    Build a rich GameDetails payload for a single event, powered by ESPN summary.
+    Build a rich GameDetails payload for a single event.
+
+    Routes to appropriate data source:
+    - NFL: ESPN API
+    - CFB: CollegeFootballData API
 
     This must remain backwards compatible with existing GameDetails consumers:
     - summary
@@ -72,6 +229,11 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     New:
     - situation (clock, period, down & distance, possession, red zone)
     """
+    # Route CFB to CFBD API
+    if sport == "college-football":
+        return _cfb_game_details(event_id)
+
+    # NFL uses ESPN
     raw: Dict[str, Any] = espn.summary(sport, event_id)
 
     header = raw.get("header") or {}

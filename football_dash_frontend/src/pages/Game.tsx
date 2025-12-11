@@ -1,5 +1,6 @@
 // football_dash_frontend/src/pages/Game.tsx
 
+import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import useSWR from "swr";
 import { API } from "../api";
@@ -7,8 +8,12 @@ import BoxScore from "../components/bento/BoxScore";
 import TeamStats from "../components/bento/TeamStats";
 import PlayByPlay from "../components/bento/PlayByPlay";
 import WinProb from "../components/bento/WinProb";
+import FieldDisplay from "../components/FieldDisplay";
+import DriveInfo from "../components/DriveInfo";
+import { GameDetails } from "../types";
 
 type Sport = "nfl" | "college-football";
+type Tab = "gamecast" | "boxscore";
 
 const fetcher = async (url: string) => {
   const res = await fetch(url);
@@ -28,7 +33,9 @@ const fetcher = async (url: string) => {
 
 export default function Game() {
   const { sport = "nfl", id = "" } = useParams();
-  const { data, error, isLoading } = useSWR(
+  const [activeTab, setActiveTab] = useState<Tab>("gamecast");
+
+  const { data, error, isLoading } = useSWR<GameDetails>(
     id ? API.game(sport as Sport, id) : null,
     fetcher
   );
@@ -118,12 +125,17 @@ export default function Game() {
   // Venue info
   const venue = summary.venue || null;
 
+  // Check if game is live (for showing field display)
+  const isLive = statusText && !statusText.toLowerCase().includes("final") &&
+                 !statusText.toLowerCase().includes("scheduled") &&
+                 situation !== null;
+
   return (
     <section className="space-y-5">
       {/* Top meta row: back link + date/status (ESPN-style) */}
       <div className="flex items-center justify-between gap-4">
         <Link
-          to={sport === "college-football" ? "/college-football" : "/nfl"}
+          to={sport === "college-football" ? "/cfb" : "/nfl"}
           className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition"
         >
           <span className="text-lg leading-none">←</span>
@@ -148,86 +160,149 @@ export default function Game() {
         </div>
       </div>
 
-      {/* Main bento: left stack vs right stack */}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
-        {/* LEFT COLUMN */}
-        <div className="space-y-4">
-          {/* ESPN-style game header card */}
-          <div className="card p-5">
-            {/* Status badge */}
-            {statusText && (
-              <div className="flex justify-center mb-3">
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
-                  statusText.toLowerCase().includes("final")
-                    ? "bg-slate-700 text-slate-300"
-                    : statusText.toLowerCase().includes("progress") || clockQuarterLine
-                    ? "bg-green-900/50 text-green-400"
-                    : "bg-slate-800 text-slate-400"
-                }`}>
-                  {statusText}
-                </span>
+      {/* Score Bug */}
+      <div className="card p-5">
+        {/* Status badge */}
+        {statusText && (
+          <div className="flex justify-center mb-3">
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider ${
+              statusText.toLowerCase().includes("final")
+                ? "bg-slate-700 text-slate-300"
+                : statusText.toLowerCase().includes("progress") || clockQuarterLine
+                ? "bg-green-900/50 text-green-400"
+                : "bg-slate-800 text-slate-400"
+            }`}>
+              {statusText}
+            </span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-between gap-4">
+          <TeamBlock
+            competitor={away}
+            align="left"
+            hasPossession={possessionTeamSide === "away"}
+          />
+
+          <div className="flex flex-col items-center min-w-[130px]">
+            {clockQuarterLine && !statusText.toLowerCase().includes("final") && (
+              <div className="text-xs font-medium text-slate-300 mb-1.5">
+                {clockQuarterLine}
               </div>
             )}
-
-            <div className="flex items-center justify-between gap-4">
-              <TeamBlock
-                competitor={away}
-                align="left"
-                hasPossession={possessionTeamSide === "away"}
-              />
-
-              <div className="flex flex-col items-center min-w-[130px]">
-                {clockQuarterLine && !statusText.toLowerCase().includes("final") && (
-                  <div className="text-xs font-medium text-slate-300 mb-1.5">
-                    {clockQuarterLine}
-                  </div>
-                )}
-                <div className="text-3xl font-bold leading-none tracking-tight">
-                  {(away?.score ?? "-")}
-                  <span className="mx-2 opacity-40 text-xl">-</span>
-                  {(home?.score ?? "-")}
-                </div>
-                {downDistanceLine && (
-                  <div className={`mt-2 text-[11px] flex items-center justify-center gap-1.5 ${
-                    isRedZone ? "text-red-400 font-medium" : "text-slate-400"
-                  }`}>
-                    {isRedZone && (
-                      <span
-                        className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse"
-                        title="Red Zone"
-                      />
-                    )}
-                    {downDistanceLine}
-                  </div>
-                )}
-              </div>
-
-              <TeamBlock
-                competitor={home}
-                align="right"
-                hasPossession={possessionTeamSide === "home"}
-              />
+            <div className="text-3xl font-bold leading-none tracking-tight">
+              {(away?.score ?? "-")}
+              <span className="mx-2 opacity-40 text-xl">-</span>
+              {(home?.score ?? "-")}
             </div>
+            {downDistanceLine && (
+              <div className={`mt-2 text-[11px] flex items-center justify-center gap-1.5 ${
+                isRedZone ? "text-red-400 font-medium" : "text-slate-400"
+              }`}>
+                {isRedZone && (
+                  <span
+                    className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse"
+                    title="Red Zone"
+                  />
+                )}
+                {downDistanceLine}
+              </div>
+            )}
           </div>
 
-          {/* Box score */}
-          <BoxScore boxscore={data.boxscore} data={data.boxscore} />
-
-          {/* Play-by-play */}
-          <PlayByPlay plays={data.plays} data={data.plays} />
-        </div>
-
-        {/* RIGHT COLUMN */}
-        <div className="space-y-4">
-          <WinProb
-            winProbability={data.winProbability}
-            homeTeam={homeName}
-            awayTeam={awayName}
-            gameStatus={statusText.toLowerCase().includes("final") ? "final" : undefined}
+          <TeamBlock
+            competitor={home}
+            align="right"
+            hasPossession={possessionTeamSide === "home"}
           />
-          <TeamStats teamStats={data.teamStats} data={data.teamStats} />
         </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="flex gap-1 border-b border-slate-700">
+        <button
+          onClick={() => setActiveTab("gamecast")}
+          className={`px-4 py-2 text-sm font-semibold transition relative ${
+            activeTab === "gamecast"
+              ? "text-white"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Gamecast
+          {activeTab === "gamecast" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("boxscore")}
+          className={`px-4 py-2 text-sm font-semibold transition relative ${
+            activeTab === "boxscore"
+              ? "text-white"
+              : "text-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Box Score
+          {activeTab === "boxscore" && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-amber-400" />
+          )}
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === "gamecast" && (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          {/* LEFT COLUMN - Field and Analytics */}
+          <div className="space-y-4">
+            {/* Field Display - only show during live games */}
+            {isLive && situation && (
+              <FieldDisplay
+                situation={situation}
+                homeTeamId={home?.team?.id || ""}
+                awayTeamId={away?.team?.id || ""}
+                homeTeamColor={home?.team?.color ? `#${home.team.color}` : undefined}
+                awayTeamColor={away?.team?.color ? `#${away.team.color}` : undefined}
+                homeTeamAbbr={home?.team?.abbreviation || "HOME"}
+                awayTeamAbbr={away?.team?.abbreviation || "AWAY"}
+              />
+            )}
+
+            {/* Win Probability */}
+            <WinProb
+              winProbability={data.winProbability}
+              homeTeam={homeName}
+              awayTeam={awayName}
+              gameStatus={statusText.toLowerCase().includes("final") ? "final" : undefined}
+            />
+
+            {/* TODO: Additional analytics can go here */}
+          </div>
+
+          {/* RIGHT COLUMN - Drive Info and Last Play */}
+          {isLive && situation && (
+            <div className="space-y-4">
+              <DriveInfo situation={situation} plays={data.plays || []} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === "boxscore" && (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1.4fr)]">
+          {/* LEFT COLUMN */}
+          <div className="space-y-4">
+            {/* Box score */}
+            <BoxScore boxscore={data.boxscore} data={data.boxscore} />
+
+            {/* Play-by-play */}
+            <PlayByPlay plays={data.plays} data={data.plays} />
+          </div>
+
+          {/* RIGHT COLUMN */}
+          <div className="space-y-4">
+            <TeamStats teamStats={data.teamStats} data={data.teamStats} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -286,6 +361,11 @@ function TeamBlock({
           align === "right" ? "justify-end" : ""
         }`}>
           {align === "right" && hasPossession && <PossessionIndicator />}
+          {team.rank && (
+            <span className="text-xs font-bold text-amber-400 px-1.5 py-0.5 bg-amber-400/10 rounded">
+              #{team.rank}
+            </span>
+          )}
           <span>{team.name ?? "Team"}</span>
         </div>
         <div className="text-xs text-slate-400 mt-0.5">

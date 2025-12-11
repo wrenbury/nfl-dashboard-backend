@@ -2,11 +2,155 @@
 
 from typing import List, Optional
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from ..models.schemas import *
 from ..clients import espn, cfbd
 from ..cfb_scoreboard import _get_week_for_date, _normalize_cfb_status
 from ..utils.cfb_logos import get_cfb_logo
+
+
+def _convert_utc_to_et_date(utc_timestamp: str) -> str:
+    """
+    Convert ESPN's UTC timestamp to ET date string.
+    ESPN returns timestamps like "2025-12-03T05:00Z" which is UTC.
+    NFL games are scheduled in ET, so we convert to ET before extracting the date.
+
+    Example: "2025-12-06T01:20Z" (Fri 1:20 AM UTC) -> "2025-12-05" (Thu in ET)
+    """
+    if not utc_timestamp or "T" not in utc_timestamp:
+        return utc_timestamp
+
+    try:
+        # Parse UTC timestamp
+        utc_dt = datetime.fromisoformat(utc_timestamp.replace("Z", "+00:00"))
+        # Convert to ET
+        et_dt = utc_dt.astimezone(ZoneInfo("America/New_York"))
+        # Return date string
+        return et_dt.date().isoformat()
+    except Exception:
+        # Fallback to original behavior if parsing fails
+        return utc_timestamp.split("T")[0]
+
+
+def _convert_utc_timestamp_to_et(utc_timestamp: str) -> str:
+    """
+    Convert ESPN's UTC timestamp to ET timezone, keeping full ISO format.
+    This is used for game startTime so the frontend can extract the correct date.
+
+    Example: "2025-12-06T01:20Z" (Fri 1:20 AM UTC) -> "2025-12-05T20:20:00-05:00" (Thu 8:20 PM ET)
+    """
+    if not utc_timestamp:
+        return utc_timestamp
+
+    try:
+        # Parse UTC timestamp (handle both "Z" and "+00:00" formats)
+        utc_dt = datetime.fromisoformat(utc_timestamp.replace("Z", "+00:00"))
+        # Convert to ET
+        et_dt = utc_dt.astimezone(ZoneInfo("America/New_York"))
+        # Return as ISO format string
+        return et_dt.isoformat()
+    except Exception:
+        # Fallback to original timestamp if parsing fails
+        return utc_timestamp
+
+
+def get_nfl_weeks() -> List[Week]:
+    """
+    Get the NFL season weeks from ESPN calendar data.
+    Returns a list of Week objects with week number, label, and date range.
+    Includes both regular season and playoff weeks.
+    """
+    raw = espn.calendar("nfl")
+    weeks: List[Week] = []
+
+    # ESPN calendar data structure:
+    # leagues[0].calendar[0] = preseason, [1] = regular season, [2] = postseason
+    leagues = raw.get("leagues", [])
+    if not leagues:
+        return weeks
+
+    calendar = leagues[0].get("calendar", [])
+
+    # Mapping for playoff labels based on typical NFL playoff structure
+    PLAYOFF_LABELS = {
+        "Wild Card": "WILD CARD",
+        "Wildcard": "WILD CARD",
+        "WildCard": "WILD CARD",
+        "Wild-Card": "WILD CARD",
+        "Divisional": "DIVISIONAL ROUND",
+        "Divisional Round": "DIVISIONAL ROUND",
+        "Conference Championships": "CONFERENCE CHAMPIONSHIP",
+        "Conference Championship": "CONFERENCE CHAMPIONSHIP",
+        "Super Bowl": "SUPERBOWL",
+        "SuperBowl": "SUPERBOWL",
+        "Pro Bowl": "PRO BOWL",
+    }
+
+    # Process all calendar sections (regular season and postseason)
+    for section_idx, cal_section in enumerate(calendar):
+        # Determine season type based on calendar section index
+        # ESPN structure: [0]=preseason, [1]=regular, [2]=postseason
+        season_type = section_idx + 1  # 1=preseason, 2=regular, 3=postseason
+
+        # Handle both list of entries and list of sections with entries
+        entries = cal_section if isinstance(cal_section, list) else cal_section.get("entries", [])
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            week_num = entry.get("value")
+            label = entry.get("label", f"Week {week_num}")
+            start_date = entry.get("startDate", "")
+            end_date = entry.get("endDate", "")
+
+            if week_num is not None:
+                # Convert UTC dates to ET dates
+                if start_date:
+                    start_date = _convert_utc_to_et_date(start_date)
+                if end_date:
+                    end_date = _convert_utc_to_et_date(end_date)
+
+                # Normalize playoff labels for postseason
+                normalized_label = label
+                if season_type == 3:  # Postseason
+                    for playoff_key, playoff_value in PLAYOFF_LABELS.items():
+                        if playoff_key.lower() in label.lower():
+                            normalized_label = playoff_value
+                            break
+
+                weeks.append(Week(
+                    number=int(week_num),
+                    label=normalized_label,
+                    startDate=start_date,
+                    endDate=end_date,
+                    seasonType=season_type,
+                ))
+
+    return weeks
+
+
+def get_current_nfl_week() -> int | None:
+    """
+    Determine the current NFL week based on today's date in ET.
+    Since NFL games are scheduled in ET, we use ET timezone for comparison.
+    """
+    weeks = get_nfl_weeks()
+    if not weeks:
+        return None
+
+    # Get current date in ET (where NFL games are scheduled)
+    today = datetime.now(ZoneInfo("America/New_York")).date()
+    today_str = today.isoformat()
+
+    for week in weeks:
+        if week.startDate and week.endDate:
+            if week.startDate <= today_str <= week.endDate:
+                return week.number
+
+    # If not in any week range, return the latest week
+    return weeks[-1].number if weeks else None
 
 
 def _map_competitor(raw) -> Competitor:
@@ -41,11 +185,17 @@ def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
         comp = e["competitions"][0]["competitors"]
         status = e["status"]["type"]["description"]
         venue = e["competitions"][0].get("venue", {}).get("fullName")
+
+        # Convert game start time from UTC to ET for correct date grouping in frontend
+        start_time = e.get("date")
+        if start_time and sport == "nfl":
+            start_time = _convert_utc_timestamp_to_et(start_time)
+
         out.append(
             GameSummary(
                 id=e["id"],
                 sport=sport,
-                startTime=e.get("date"),
+                startTime=start_time,
                 status=status,
                 venue=venue,
                 competitors=[
@@ -93,6 +243,7 @@ def _pick_score(*values: object) -> int:
 def _build_cfb_scoreboard_from_cfbd(
     date: str | None,
     week: int | None,
+    conference: str | None = None,
 ) -> List[GameSummary]:
     """
     Build a GameSummary-style scoreboard for college football using CFBD.
@@ -117,7 +268,8 @@ def _build_cfb_scoreboard_from_cfbd(
         return []
 
     # CFBD /games -> "Games and results" (includes points in v2).
-    raw_games = cfbd.games(year=year, week=cfbd_week, seasonType="regular") or []
+    # Pass conference filter to only show games from selected conference
+    raw_games = cfbd.games(year=year, week=cfbd_week, seasonType="regular", conference=conference) or []
     out: List[GameSummary] = []
 
     STATUS_LABELS = {
@@ -132,6 +284,14 @@ def _build_cfb_scoreboard_from_cfbd(
 
     for g in raw_games:
         if not isinstance(g, dict):
+            continue
+
+        # Filter to only FBS and FCS games (exclude D-II and D-III)
+        home_class = (g.get("homeClassification") or "").lower()
+        away_class = (g.get("awayClassification") or "").lower()
+
+        # Skip if either team is D-II, D-III, or unknown
+        if home_class in ("ii", "iii", "") or away_class in ("ii", "iii", ""):
             continue
 
         # Game id
@@ -192,6 +352,10 @@ def _build_cfb_scoreboard_from_cfbd(
         home_logo = get_cfb_logo(str(home_team_name))
         away_logo = get_cfb_logo(str(away_team_name))
 
+        # Extract rankings if available (CFBD includes rankings in some responses)
+        home_rank = g.get("homeRank") or g.get("home_rank")
+        away_rank = g.get("awayRank") or g.get("away_rank")
+
         home_comp = Competitor(
             team=Team(
                 id=str(home_team_id),
@@ -201,7 +365,7 @@ def _build_cfb_scoreboard_from_cfbd(
                 color=None,
                 logo=home_logo,
                 record=None,
-                rank=None,
+                rank=home_rank,
             ),
             homeAway="home",
             score=home_points,
@@ -216,20 +380,26 @@ def _build_cfb_scoreboard_from_cfbd(
                 color=None,
                 logo=away_logo,
                 record=None,
-                rank=None,
+                rank=away_rank,
             ),
             homeAway="away",
             score=away_points,
         )
 
         # CFBD may use different fields for time; fall back to empty string if missing.
+        # CFBD API v2 uses camelCase: startDate
         start_time = (
-            g.get("start_date")
+            g.get("startDate")       # CFBD v2 camelCase
+            or g.get("start_date")   # Legacy snake_case
             or g.get("startTime")
             or g.get("start_time")
             or g.get("game_date")
             or ""
         )
+
+        # Convert to ET timezone for correct date grouping in frontend
+        if start_time:
+            start_time = _convert_utc_timestamp_to_et(start_time)
 
         # Keep away/home ordering consistent with ESPN mapping (away first).
         competitors = [away_comp, home_comp]
@@ -248,14 +418,109 @@ def _build_cfb_scoreboard_from_cfbd(
     return out
 
 
-def get_scoreboard(sport: Sport, date: str | None, week: int | None):
+def get_cfb_weeks(year: int) -> List[Week]:
+    """
+    Get CFB season weeks from CFBD calendar API.
+    Returns a list of Week objects for the given season.
+    """
+    raw = cfbd.calendar(year)
+    weeks: List[Week] = []
+
+    if not isinstance(raw, list):
+        return weeks
+
+    for entry in raw:
+        if not isinstance(entry, dict):
+            continue
+
+        week_num = entry.get("week")
+        season_type = entry.get("seasonType", "regular")
+        start_date = entry.get("firstGameStart") or entry.get("startDate", "")
+        end_date = entry.get("lastGameStart") or entry.get("endDate", "")
+
+        if week_num is not None and season_type == "regular":
+            # Convert timestamps to date strings if needed
+            if start_date and "T" in start_date:
+                start_date = _convert_utc_to_et_date(start_date)
+            if end_date and "T" in end_date:
+                end_date = _convert_utc_to_et_date(end_date)
+
+            weeks.append(Week(
+                number=int(week_num),
+                label=f"Week {week_num}",
+                startDate=start_date,
+                endDate=end_date,
+                seasonType=2,  # Regular season
+            ))
+
+    return weeks
+
+
+def get_cfb_conferences() -> List[dict]:
+    """
+    Get list of FBS and FCS conferences from CFBD.
+    Returns a list of conference objects with id, name, abbreviation.
+    Includes special options like "Top 25" and "FBS".
+    """
+    raw = cfbd.conferences()
+
+    if not isinstance(raw, list):
+        return []
+
+    # Add special filter options
+    conferences = [
+        {"id": 0, "name": "Top 25", "abbreviation": "Top 25"},
+        {"id": 1, "name": "FBS", "abbreviation": "FBS"},
+    ]
+
+    # Allowed conference list based on user requirements
+    allowed_conferences = {
+        "ACC", "American", "Big 12", "Big Ten", "Big 12",
+        "CUSA", "FBS Indep.", "MAC", "Mountain West", "Pac-12",
+        "SEC", "Sun Belt", "FCS"
+    }
+
+    # Filter to only FBS and FCS conferences in the allowed list
+    for conf in raw:
+        if not isinstance(conf, dict):
+            continue
+
+        classification = (conf.get("classification") or "").lower()
+        conf_name = conf.get("name") or ""
+        conf_abbr = conf.get("abbreviation") or ""
+
+        # Only include FBS and FCS conferences
+        if classification not in ("fbs", "fcs"):
+            continue
+
+        # Check if conference is in allowed list
+        if conf_name in allowed_conferences or conf_abbr in allowed_conferences:
+            conferences.append({
+                "id": conf.get("id"),
+                "name": conf_name,
+                "abbreviation": conf_abbr,
+            })
+
+    return conferences
+
+
+def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference: str | None = None):
     """Route NFL to ESPN, CFB to CFBD."""
     if sport == "nfl":
-        raw = espn.scoreboard(sport, date=date, week=week)
+        # Look up season type for the requested week
+        seasontype = None
+        if week is not None:
+            weeks = get_nfl_weeks()
+            for w in weeks:
+                if w.number == week:
+                    seasontype = w.seasonType
+                    break
+
+        raw = espn.scoreboard(sport, date=date, week=week, seasontype=seasontype)
         return parse_scoreboard(sport, raw)
 
     if sport == "college-football":
-        return _build_cfb_scoreboard_from_cfbd(date=date, week=week)
+        return _build_cfb_scoreboard_from_cfbd(date=date, week=week, conference=conference)
 
     # Unknown sport -> empty board (defensive default)
     return []

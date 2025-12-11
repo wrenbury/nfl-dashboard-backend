@@ -4,6 +4,9 @@ import { useState, useMemo } from "react";
 import useSWR from "swr";
 import { Link } from "react-router-dom";
 import { API } from "../api";
+import type { Week, Conference } from "../api";
+import WeekSelector from "../components/WeekSelector";
+import NFLGameCard from "../components/NFLGameCard";
 
 type Sport = "nfl" | "college-football";
 
@@ -113,6 +116,34 @@ function getCurrentNflWeek(): number {
   return 18;
 }
 
+// Group games by date for display
+function groupGamesByDate(games: any[]): Map<string, any[]> {
+  const grouped = new Map<string, any[]>();
+
+  for (const game of games) {
+    const startTime = game.startTime;
+    if (!startTime) continue;
+
+    // Parse ISO date string to get just the date part
+    const dateStr = startTime.split("T")[0];
+    const existing = grouped.get(dateStr) || [];
+    existing.push(game);
+    grouped.set(dateStr, existing);
+  }
+
+  return grouped;
+}
+
+function formatDateHeader(dateStr: string): string {
+  const date = new Date(dateStr + "T12:00:00");
+  return date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 export default function Scoreboard({ sport }: Props) {
   const currentYear = new Date().getFullYear();
   const [selectedWeek, setSelectedWeek] = useState(getCurrentNflWeek());
@@ -128,6 +159,71 @@ export default function Scoreboard({ sport }: Props) {
   });
 
   const games = Array.isArray(data) ? data : [];
+  const gamesByDate = groupGamesByDate(games);
+
+  // Sort dates chronologically
+  const sortedDates = Array.from(gamesByDate.keys()).sort();
+
+  // NFL-specific view with week selector
+  if (sport === "nfl") {
+    return (
+      <section className="space-y-4">
+        <h1 className="text-2xl font-bold">NFL Scoreboard</h1>
+
+        {/* Week selector */}
+        {weeks.length > 0 && selectedWeek !== null && (
+          <WeekSelector
+            weeks={weeks}
+            selectedWeek={selectedWeek}
+            onWeekChange={setSelectedWeek}
+          />
+        )}
+
+        {isLoading && (
+          <div className="text-sm opacity-80">Loading scoreboard...</div>
+        )}
+
+        {error && (
+          <div className="text-sm text-red-400 whitespace-pre-wrap card">
+            Failed to load scoreboard.
+            {"\n"}
+            {(error as Error).message}
+          </div>
+        )}
+
+        {!isLoading && !error && games.length === 0 && (
+          <div className="text-sm opacity-70 card">
+            No games scheduled for this week.
+          </div>
+        )}
+
+        {!isLoading && !error && games.length > 0 && (
+          <div className="space-y-6">
+            {sortedDates.map((dateStr) => {
+              const dateGames = gamesByDate.get(dateStr) || [];
+              return (
+                <div key={dateStr}>
+                  <h2 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">
+                    {formatDateHeader(dateStr)}
+                  </h2>
+                  <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-2">
+                    {dateGames.map((game: any) => (
+                      <NFLGameCard key={game.id} game={game} />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+    );
+  }
+
+  // College football view with week selector, year selector, and conference filter
+  // Generate year options (current season and previous 5 years)
+  const currentCFBYear = getCurrentCFBYear();
+  const yearOptions = Array.from({ length: 6 }, (_, i) => currentCFBYear - i);
 
   // Group games by date
   const gamesByDate = useMemo(() => {
@@ -204,6 +300,28 @@ export default function Scoreboard({ sport }: Props) {
         <div className="px-4 py-2 bg-slate-900/50 text-center text-sm text-slate-400">
           {currentWeekData?.label} • {currentWeekData?.dateRange}
         </div>
+
+        {/* Conference filter */}
+        {conferences.length > 0 && (
+          <div className="flex items-center gap-3">
+            <label htmlFor="conference-filter" className="text-sm font-medium text-slate-300">
+              Conference:
+            </label>
+            <select
+              id="conference-filter"
+              value={selectedConference}
+              onChange={(e) => setSelectedConference(e.target.value)}
+              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
+            >
+              <option value="">All Conferences</option>
+              {conferences.map((conf) => (
+                <option key={conf.id} value={conf.abbreviation}>
+                  {conf.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Loading / Error States */}

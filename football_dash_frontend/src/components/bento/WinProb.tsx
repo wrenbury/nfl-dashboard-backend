@@ -353,10 +353,10 @@ export default function WinProb({
         </ResponsiveContainer>
 
         {/* Y-axis team labels */}
-        <div className="absolute left-0 top-0 text-[9px] text-slate-400 uppercase tracking-wider">
+        <div className="absolute left-0 top-1 text-[9px] text-slate-400 uppercase tracking-wider">
           {homeTeam}
         </div>
-        <div className="absolute left-0 bottom-0 text-[9px] text-slate-400 uppercase tracking-wider">
+        <div className="absolute left-0 bottom-1 text-[9px] text-slate-400 uppercase tracking-wider">
           {awayTeam}
         </div>
       </div>
