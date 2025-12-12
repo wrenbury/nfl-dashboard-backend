@@ -1,6 +1,7 @@
 // football_dash_frontend/src/components/FieldDisplay.tsx
 
 import { GameSituation } from "../types";
+import "./FieldDisplay.css";
 
 type Props = {
   situation: GameSituation | null;
@@ -16,312 +17,253 @@ export default function FieldDisplay({
   situation,
   homeTeamId,
   awayTeamId,
-  homeTeamColor = "#1a472a",
-  awayTeamColor = "#1a472a",
+  homeTeamColor = "#a71930",
+  awayTeamColor = "#a71930",
   homeTeamAbbr = "HOME",
   awayTeamAbbr = "AWAY",
 }: Props) {
   // Use situation data if available, otherwise use defaults
   const yardLine = situation?.yardLine || 50;
   const possessionTeamId = situation?.possessionTeamId || null;
-  const down = situation?.down || null;
-  const distance = situation?.distance || null;
   const isRedZone = situation?.isRedZone || false;
 
-  // Determine which end zone is which
-  // In NFL, yard lines go 0-100, with 50 being midfield
-  // 0-20 is away team's red zone, 80-100 is home team's red zone
-  const yardPosition = yardLine || 50;
+  // ESPN's coordinate system:
+  // x=0 to x=50: Away end zone
+  // x=50 to x=550: Playing field (100 yards, 5 units per yard)
+  // x=550 to x=600: Home end zone
+  // Ball position: x = 50 + (yardLine * 5)
+  const ballX = 50 + (yardLine * 5);
+  const ballY = 56.35; // Vertical center of field
 
-  // Calculate ball position as percentage (0-100)
-  const ballPositionPercent = (yardPosition / 100) * 100;
-
-  // Field dimensions for SVG
-  const fieldWidth = 800;
-  const fieldHeight = 400;
-  const endZoneWidth = 60;
-  const playingFieldWidth = fieldWidth - (endZoneWidth * 2);
-
-  // Convert yard position to SVG X coordinate
-  const ballX = endZoneWidth + (yardPosition / 100) * playingFieldWidth;
-  const ballY = fieldHeight / 2;
-
-  // Always show ball during live games (even if no possession data)
+  // Always show ball during live games
   const showBall = true;
 
+  // Helper function to get team logo URL
+  const getTeamLogoUrl = (teamId: string) => {
+    const abbr = teamId === homeTeamId ? homeTeamAbbr?.toLowerCase() : awayTeamAbbr?.toLowerCase();
+    return `https://a.espncdn.com/combiner/i?img=/i/teamlogos/nfl/500/scoreboard/${abbr}.png&cquality=80&h=80&w=80`;
+  };
+
   return (
-    <div className="w-full">
-      {/* Field container with 3D perspective */}
-      <div className="relative w-full bg-gradient-to-b from-slate-800 to-slate-900 rounded-lg overflow-hidden shadow-2xl">
-        <svg
-          viewBox={`0 0 ${fieldWidth} ${fieldHeight}`}
-          className="w-full h-auto"
-          style={{
-            filter: "drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3))",
-          }}
-        >
-          {/* Field background - green with slight gradient */}
-          <defs>
-            <linearGradient id="fieldGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="#2d5016" />
-              <stop offset="50%" stopColor="#1a472a" />
-              <stop offset="100%" stopColor="#2d5016" />
-            </linearGradient>
+    <div className="FieldView">
+      <svg className="FieldSVG" viewBox="0 -40 600 130">
+        <defs>
+          <clipPath id="clippath-field-side">
+            <polygon points="599.95 90 0 90 .05 86 600 86 599.95 90"></polygon>
+          </clipPath>
+          <clipPath id="clippath-field-top-small">
+            <path d="M45.71,84.34h508.59l-24.22-56.98H69.92l-24.22,56.98ZM548.62,82.69H51.38l22.49-53.97h452.26l22.49,53.97Z"></path>
+          </clipPath>
+          <clipPath id="clippath-field-top-large">
+            <polygon points="575 86 25 86 52.5 26 547.5 26 575 86"></polygon>
+          </clipPath>
+        </defs>
 
-            {/* Pattern for field stripes */}
-            <pattern id="stripes" x="0" y="0" width="40" height={fieldHeight} patternUnits="userSpaceOnUse">
-              <rect x="0" y="0" width="20" height={fieldHeight} fill="#1a472a" />
-              <rect x="20" y="0" width="20" height={fieldHeight} fill="#1e5230" />
-            </pattern>
+        {/* Field Side (bottom view) */}
+        <g data-name="Field Side">
+          {/* 10-yard sections */}
+          <rect className={`tenYardFill ${isRedZone && yardLine <= 20 ? 'redzone--left' : ''}`} x="50" y="86" width="50" height="4"></rect>
+          <rect className={`tenYardFill tenYardFill--dark ${isRedZone && yardLine <= 20 ? 'redzone--left' : ''}`} x="100" y="86" width="50" height="4"></rect>
+          <rect className="tenYardFill" x="150" y="86" width="50" height="4"></rect>
+          <rect className="tenYardFill tenYardFill--dark" x="200" y="86" width="50" height="4"></rect>
+          <rect className="tenYardFill" x="250" y="86" width="50" height="4"></rect>
+          <rect className="tenYardFill" x="300" y="86" width="50" height="4"></rect>
+          <rect className="tenYardFill tenYardFill--dark" x="350" y="86" width="50" height="4"></rect>
+          <rect className="tenYardFill" x="400" y="86" width="50" height="4"></rect>
+          <rect className={`tenYardFill tenYardFill--dark ${isRedZone && yardLine >= 80 ? 'redzone--right' : ''}`} x="450" y="86" width="50" height="4"></rect>
+          <rect className={`tenYardFill ${isRedZone && yardLine >= 80 ? 'redzone--right' : ''}`} x="500" y="86" width="50" height="4"></rect>
 
-            {/* Red zone highlight */}
-            <linearGradient id="redZoneGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="rgba(220, 38, 38, 0.15)" />
-              <stop offset="50%" stopColor="rgba(220, 38, 38, 0.25)" />
-              <stop offset="100%" stopColor="rgba(220, 38, 38, 0.15)" />
-            </linearGradient>
-          </defs>
-
-          {/* Away end zone (left) */}
-          <rect
-            x="0"
-            y="0"
-            width={endZoneWidth}
-            height={fieldHeight}
-            fill={awayTeamColor}
-            opacity="0.9"
-          />
-          <text
-            x={endZoneWidth / 2}
-            y={fieldHeight / 2}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="white"
-            fontSize="24"
-            fontWeight="bold"
-            opacity="0.8"
-            transform={`rotate(-90 ${endZoneWidth / 2} ${fieldHeight / 2})`}
-          >
-            {awayTeamAbbr}
-          </text>
-
-          {/* Home end zone (right) */}
-          <rect
-            x={fieldWidth - endZoneWidth}
-            y="0"
-            width={endZoneWidth}
-            height={fieldHeight}
-            fill={homeTeamColor}
-            opacity="0.9"
-          />
-          <text
-            x={fieldWidth - endZoneWidth / 2}
-            y={fieldHeight / 2}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fill="white"
-            fontSize="24"
-            fontWeight="bold"
-            opacity="0.8"
-            transform={`rotate(-90 ${fieldWidth - endZoneWidth / 2} ${fieldHeight / 2})`}
-          >
-            {homeTeamAbbr}
-          </text>
-
-          {/* Playing field with stripes */}
-          <rect
-            x={endZoneWidth}
-            y="0"
-            width={playingFieldWidth}
-            height={fieldHeight}
-            fill="url(#stripes)"
-          />
-
-          {/* Red zones highlight */}
-          {isRedZone && (
-            <>
-              {/* Away red zone (0-20 yards) */}
-              <rect
-                x={endZoneWidth}
-                y="0"
-                width={playingFieldWidth * 0.2}
-                height={fieldHeight}
-                fill="url(#redZoneGradient)"
-              />
-              {/* Home red zone (80-100 yards) */}
-              <rect
-                x={endZoneWidth + playingFieldWidth * 0.8}
-                y="0"
-                width={playingFieldWidth * 0.2}
-                height={fieldHeight}
-                fill="url(#redZoneGradient)"
-              />
-            </>
-          )}
+          {/* End zones */}
+          <rect fill={homeTeamColor} x="550" y="86" width="50" height="4"></rect>
+          <rect fill={awayTeamColor} x="0" y="86" width="50" height="4"></rect>
 
           {/* Yard lines */}
-          {[10, 20, 30, 40, 50, 60, 70, 80, 90].map((yard) => {
-            const x = endZoneWidth + (yard / 100) * playingFieldWidth;
-            const isMidfield = yard === 50;
+          <g clipPath="url(#clippath-field-side)">
+            <line className="tenYardLine" x1="50" y1="86" x2="50" y2="90"></line>
+            <line className="tenYardLine" x1="100" y1="86" x2="100" y2="90"></line>
+            <line className="tenYardLine" x1="150" y1="86" x2="150" y2="90"></line>
+            <line className="tenYardLine" x1="200" y1="86" x2="200" y2="90"></line>
+            <line className="tenYardLine" x1="250" y1="86" x2="250" y2="90"></line>
+            <line className="tenYardLine" strokeWidth="2" x1="300" y1="86" x2="300" y2="90"></line>
+            <line className="tenYardLine" x1="350" y1="86" x2="350" y2="90"></line>
+            <line className="tenYardLine" x1="400" y1="86" x2="400" y2="90"></line>
+            <line className="tenYardLine" x1="450" y1="86" x2="450" y2="90"></line>
+            <line className="tenYardLine" x1="500" y1="86" x2="500" y2="90"></line>
+            <line className="tenYardLine" x1="550" y1="86" x2="550" y2="90"></line>
+          </g>
 
-            return (
-              <g key={yard}>
-                {/* Yard line */}
-                <line
-                  x1={x}
-                  y1="0"
-                  x2={x}
-                  y2={fieldHeight}
-                  stroke="white"
-                  strokeWidth={isMidfield ? "3" : "2"}
-                  opacity={isMidfield ? "0.9" : "0.6"}
-                />
+          <polygon className="side-overlay" points="599.95 90 0 90 .05 86 600 86 599.95 90"></polygon>
+        </g>
 
-                {/* Yard number (top) */}
-                <text
-                  x={x}
-                  y="30"
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize="20"
-                  fontWeight="bold"
-                  opacity="0.7"
-                >
-                  {yard <= 50 ? yard : 100 - yard}
-                </text>
+        {/* Field Top (3D perspective view) */}
+        <g data-name="Field Top">
+          {/* 10-yard section polygons */}
+          <polygon className={`tenYardFill ${isRedZone && yardLine <= 20 ? 'redzone--left' : ''}`} points="100 86 50 86 75 26 120 26 100 86"></polygon>
+          <polygon className={`tenYardFill tenYardFill--dark ${isRedZone && yardLine <= 20 ? 'redzone--left' : ''}`} points="150 86 100 86 120 26 165 26 150 86"></polygon>
+          <polygon className="tenYardFill" points="200 86 150 86 165 26 210 26 200 86"></polygon>
+          <polygon className="tenYardFill tenYardFill--dark" points="250 86 200 86 210 26 255 26 250 86"></polygon>
+          <polygon className="tenYardFill" points="300 86 250 86 255 26 300 26 300 86"></polygon>
+          <polygon className="tenYardFill" points="350 86 300 86 300 26 345 26 350 86"></polygon>
+          <polygon className="tenYardFill tenYardFill--dark" points="400 86 350 86 345 26 390 26 400 86"></polygon>
+          <polygon className="tenYardFill" points="450 86 400 86 390 26 435 26 450 86"></polygon>
+          <polygon className={`tenYardFill tenYardFill--dark ${isRedZone && yardLine >= 80 ? 'redzone--right' : ''}`} points="500 86 450 86 435 26 480 26 500 86"></polygon>
+          <polygon className={`tenYardFill ${isRedZone && yardLine >= 80 ? 'redzone--right' : ''}`} points="550 86 500 86 480 26 525 26 550 86"></polygon>
 
-                {/* Yard number (bottom) */}
-                <text
-                  x={x}
-                  y={fieldHeight - 30}
-                  textAnchor="middle"
-                  fill="white"
-                  fontSize="20"
-                  fontWeight="bold"
-                  opacity="0.7"
-                  transform={`rotate(180 ${x} ${fieldHeight - 30})`}
-                >
-                  {yard <= 50 ? yard : 100 - yard}
-                </text>
-              </g>
-            );
-          })}
+          {/* End zones */}
+          <polygon fill={homeTeamColor} points="600 86 550 86 525 26 570 26 600 86"></polygon>
+          <polygon fill={awayTeamColor} points="50 86 0 86 30 26 75 26 50 86"></polygon>
 
-          {/* Hash marks (every 5 yards) */}
-          {Array.from({ length: 19 }, (_, i) => (i + 1) * 5).map((yard) => {
-            if (yard % 10 === 0) return null; // Skip decade lines
-            const x = endZoneWidth + (yard / 100) * playingFieldWidth;
+          {/* One-yard lines (hash marks) */}
+          <g clipPath="url(#clippath-field-top-small)">
+            {Array.from({ length: 100 }, (_, i) => {
+              if (i % 10 === 0) return null; // Skip 10-yard lines
+              const x1 = 75 + (i * 4.5);
+              const y1 = 26;
+              const x2 = 50 + (i * 5);
+              const y2 = 86;
+              return <line key={i} className="oneYardLine" x1={x1} y1={y1} x2={x2} y2={y2}></line>;
+            })}
+          </g>
 
-            return (
-              <g key={`hash-${yard}`}>
-                <line
-                  x1={x}
-                  y1={fieldHeight * 0.35}
-                  x2={x}
-                  y2={fieldHeight * 0.38}
-                  stroke="white"
-                  strokeWidth="2"
-                  opacity="0.5"
-                />
-                <line
-                  x1={x}
-                  y1={fieldHeight * 0.62}
-                  x2={x}
-                  y2={fieldHeight * 0.65}
-                  stroke="white"
-                  strokeWidth="2"
-                  opacity="0.5"
-                />
-              </g>
-            );
-          })}
+          {/* 10-yard lines */}
+          <g clipPath="url(#clippath-field-top-large)">
+            <line className="tenYardLine" x1="75" y1="26" x2="50" y2="86"></line>
+            <line className="tenYardLine" x1="120" y1="26" x2="100" y2="86"></line>
+            <line className="tenYardLine" x1="165" y1="26" x2="150" y2="86"></line>
+            <line className="tenYardLine" x1="210" y1="26" x2="200" y2="86"></line>
+            <line className="tenYardLine" x1="255" y1="26" x2="250" y2="86"></line>
+            <line className="tenYardLine" strokeWidth="2" x1="300" y1="26" x2="300" y2="86"></line>
+            <line className="tenYardLine" x1="345" y1="26" x2="350" y2="86"></line>
+            <line className="tenYardLine" x1="390" y1="26" x2="400" y2="86"></line>
+            <line className="tenYardLine" x1="435" y1="26" x2="450" y2="86"></line>
+            <line className="tenYardLine" x1="480" y1="26" x2="500" y2="86"></line>
+            <line className="tenYardLine" x1="525" y1="26" x2="550" y2="86"></line>
+          </g>
+        </g>
 
-          {/* Ball marker */}
-          {showBall && (
-            <g>
-              {/* Ball position line */}
-              <line
-                x1={ballX}
-                y1="0"
-                x2={ballX}
-                y2={fieldHeight}
-                stroke="#fbbf24"
-                strokeWidth="4"
-                strokeDasharray="10,5"
-                opacity="0.8"
-              />
+        {/* Goal posts */}
+        <g>
+          {/* Away goal post (left) */}
+          <path fill="#6c6e6f" d="M6,48.75s0-.75,2-.75,2,.75,2,.75v8.5s0,.75-2,.75-2-.75-2-.75v-8.5Z"></path>
+          <path fill="#e2ce23" d="M13,43c-2.21,0-4,1.79-4,4v2s0,.4-1,.4-1-.4-1-.4v-2c0-3.31,2.69-6,6-6h1v2h-1Z"></path>
+          <path fill="#e2ce23" d="M18,10.4v26.6c0,.18-.05.36-.14.51l-6,10c-.23.39-.69.57-1.12.45-.43-.12-.73-.51-.73-.96v-30.6s0-.4,1-.4,1,.4,1,.4v26.99l4-6.67V10.4s0-.4,1-.4,1,.4,1,.4Z"></path>
+          <rect fill="#e2ce23" x="11" y="42" width="2" height="2"></rect>
 
-              {/* Ball icon */}
-              <g transform={`translate(${ballX}, ${ballY})`}>
-                {/* Glow effect */}
-                <circle
-                  cx="0"
-                  cy="0"
-                  r="25"
-                  fill="#fbbf24"
-                  opacity="0.3"
-                />
-                {/* Ball */}
-                <ellipse
-                  cx="0"
-                  cy="0"
-                  rx="18"
-                  ry="12"
-                  fill="#8B4513"
-                  stroke="#5d2f0f"
-                  strokeWidth="2"
-                />
-                {/* Laces */}
-                <line x1="-8" y1="0" x2="8" y2="0" stroke="white" strokeWidth="1.5" />
-                <line x1="-6" y1="-3" x2="-6" y2="3" stroke="white" strokeWidth="1" />
-                <line x1="-2" y1="-3" x2="-2" y2="3" stroke="white" strokeWidth="1" />
-                <line x1="2" y1="-3" x2="2" y2="3" stroke="white" strokeWidth="1" />
-                <line x1="6" y1="-3" x2="6" y2="3" stroke="white" strokeWidth="1" />
-              </g>
+          {/* Home goal post (right) */}
+          <path fill="#6c6e6f" d="M594,57.25s0,.75-2,.75-2-.75-2-.75v-8.5s0-.75,2-.75,2,.75,2,.75v8.5Z"></path>
+          <path fill="#e2ce23" d="M586,43v-2h1c3.31,0,6,2.69,6,6v2s0,.4-1,.4-1-.4-1-.4v-2c0-2.21-1.79-4-4-4h-1Z"></path>
+          <path fill="#e2ce23" d="M583,10c1,0,1,.4,1,.4v26.32s4,6.67,4,6.67v-26.99s0-.4,1-.4,1,.4,1,.4v30.6c0,.45-.3.84-.73.96-.43.12-.89-.06-1.12-.45l-6-10c-.09-.16-.14-.33-.14-.51V10.4s0-.4,1-.4Z"></path>
+          <rect fill="#e2ce23" x="587" y="42" width="2" height="2"></rect>
+        </g>
 
-              {/* Yard line indicator */}
-              <rect
-                x={ballX - 30}
-                y={ballY - 50}
-                width="60"
-                height="30"
-                rx="5"
-                fill="rgba(0, 0, 0, 0.8)"
-              />
-              <text
-                x={ballX}
-                y={ballY - 30}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="#fbbf24"
-                fontSize="16"
-                fontWeight="bold"
-              >
-                {yardLine}
+        {/* End zone team names */}
+        <g className="EndzoneTeamNames EndzoneTeamNames--away EndzoneTeamNames--desktop">
+          <svg x="0" y="35" width="50" height="45">
+            <g className="EndzoneTeamNames__scale EndzoneTeamNames__scale--medium">
+              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" className="EndzoneTeamNames__text">
+                {awayTeamAbbr}
               </text>
             </g>
-          )}
-        </svg>
+          </svg>
+        </g>
+        <g className="EndzoneTeamNames EndzoneTeamNames--home EndzoneTeamNames--desktop">
+          <svg x="550" y="35" width="50" height="45">
+            <g className="EndzoneTeamNames__scale EndzoneTeamNames__scale--large">
+              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" className="EndzoneTeamNames__text">
+                {homeTeamAbbr}
+              </text>
+            </g>
+          </svg>
+        </g>
 
-        {/* Down and distance overlay */}
-        {down && distance !== undefined && (
-          <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm px-4 py-2 rounded-lg border border-slate-600">
-            <div className="text-amber-400 text-sm font-bold">
-              {down === 1 ? "1ST" : down === 2 ? "2ND" : down === 3 ? "3RD" : "4TH"}
-              {" & "}
-              {distance}
-            </div>
-          </div>
+        {/* Ball marker */}
+        {showBall && (
+          <g>
+            {/* Drive start line */}
+            <path className="DriveStart" d={`M ${ballX} ${ballY} L ${ballX} ${ballY}`}></path>
+
+            {/* Ball symbol */}
+            <g transform={`translate(${ballX}, ${ballY})`}>
+              <g filter="url(#ballfilter)">
+                <path className="BallDefs__Ball" d="m 0.3 2.861 c 3.3691 0 4.655 -2.961 4.655 -2.961 s -1.2859 -2.961 -4.655 -2.961 c -3.3684 0 -4.655 2.961 -4.655 2.961 s 1.2866 2.961 4.655 2.961 z"></path>
+              </g>
+              <path className="BallDefs__Laces" fillRule="evenodd" d="m -1.333 -1.584 c 0 -0.0875 0.0595 -0.1645 0.1449 -0.1855 a 6.1355 6.1355 90 0 1 2.9764 0 c 0.0854 0.021 0.1449 0.098 0.1449 0.1855 v 0.4361 a 0.2044 0.2044 90 0 1 -0.2289 0.203 l -0.595 -0.0749 a 6.5338 6.5338 90 0 0 -1.6184 0 l -0.595 0.0742 a 0.2044 0.2044 90 0 1 -0.2289 -0.203 v -0.4354 z" clipRule="evenodd"></path>
+            </g>
+
+            {/* Team logo bubble */}
+            {possessionTeamId && (
+              <g className="TeamLogoBubble fadeIn" transform={`translate(${ballX}, ${ballY - 28})`}>
+                <path
+                  fill="rgba(0, 0, 0, 0.8)"
+                  stroke="white"
+                  className="TeamLogoBubble__bubble"
+                  d="m 15.75 0 c 0 4.2109 -1.849 8.0522 -4.6867 11.8181 c -2.5442 3.3764 -5.8644 6.6689 -9.3217 10.0974 c -0.4018 0.3984 -0.8053 0.7986 -1.2098 1.2011 c -0.294 0.2925 -0.7696 0.2925 -1.0636 0 c -0.4044 -0.4025 -0.808 -0.8027 -1.2098 -1.2011 c -3.4573 -3.4285 -6.7775 -6.7209 -9.3217 -10.0974 c -2.8376 -3.7659 -4.6867 -7.6072 -4.6867 -11.8181 c 0 -8.6985 7.0515 -15.75 15.75 -15.75 c 8.6985 0 15.75 7.0515 15.75 15.75 z">
+                </path>
+                <image
+                  className="TeamLogoBubble__image"
+                  xlinkHref={getTeamLogoUrl(possessionTeamId)}
+                  preserveAspectRatio="none"
+                  x="-11.5"
+                  y="-11.5"
+                  width="23"
+                  height="23">
+                </image>
+                <path className="TeamLogoBubble__arrow" d="m 0 28 l 6 -6.5 l -12 0 z"></path>
+              </g>
+            )}
+          </g>
         )}
 
-        {/* Red zone indicator */}
-        {isRedZone && (
-          <div className="absolute top-4 right-4 bg-red-600/90 backdrop-blur-sm px-3 py-1.5 rounded-lg">
-            <div className="text-white text-xs font-bold tracking-wide">
-              RED ZONE
-            </div>
-          </div>
-        )}
+        {/* Filter definitions */}
+        <defs>
+          <filter id="ballfilter" width="13.3" height="10.208" x="-4.35" y="-3.979" colorInterpolationFilters="sRGB" filterUnits="userSpaceOnUse">
+            <feFlood floodOpacity="0" result="BackgroundImageFix"></feFlood>
+            <feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend>
+            <feColorMatrix in="SourceAlpha" result="hardAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"></feColorMatrix>
+            <feOffset dy="-1.75"></feOffset>
+            <feGaussianBlur stdDeviation="1.167"></feGaussianBlur>
+            <feComposite in2="hardAlpha" k2="-1" k3="1" operator="arithmetic"></feComposite>
+            <feColorMatrix values="0 0 0 0 0.168627 0 0 0 0 0.172549 0 0 0 0 0.176471 0 0 0 1 0"></feColorMatrix>
+            <feBlend in2="shape" result="effect1_innerShadow_1690_30900"></feBlend>
+          </filter>
+        </defs>
+      </svg>
+
+      {/* Field markers */}
+      <div className="FieldView__markers">
+        <div className="FieldView__markers__awayteam">
+          <span>{awayTeamAbbr}</span>
+        </div>
+        <div className="FieldView__markers__10 hide-mobile">
+          <span>10</span>
+        </div>
+        <div className="FieldView__markers__20">
+          <span>20</span>
+        </div>
+        <div className="FieldView__markers__30 hide-mobile">
+          <span>30</span>
+        </div>
+        <div className="FieldView__markers__40 hide-mobile">
+          <span>40</span>
+        </div>
+        <div className="FieldView__markers__50">
+          <span>50</span>
+        </div>
+        <div className="FieldView__markers__60 hide-mobile">
+          <span>40</span>
+        </div>
+        <div className="FieldView__markers__70 hide-mobile">
+          <span>30</span>
+        </div>
+        <div className="FieldView__markers__80">
+          <span>20</span>
+        </div>
+        <div className="FieldView__markers__90 hide-mobile">
+          <span>10</span>
+        </div>
+        <div className="FieldView__markers__hometeam">
+          <span>{homeTeamAbbr}</span>
+        </div>
       </div>
     </div>
   );
