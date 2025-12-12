@@ -224,11 +224,17 @@ export default function WinProb({
 
   // Set domain to actual game progress (don't extend to full game during live games)
   // Use current game time if available, otherwise use last data point
-  const domainMax = currentGameTime !== null
-    ? Math.max(currentGameTime, 0.1) // Use calculated current time for live games
-    : lastT > 1
-    ? lastT // Allow OT to extend beyond 1.0
-    : Math.max(lastT, 0.1); // Minimum 10% to avoid empty chart
+  let domainMax: number;
+  if (currentGameTime !== null) {
+    // Live game with situation data - show only up to current time plus small buffer
+    domainMax = Math.min(currentGameTime + 0.05, 1.1); // Add 5% buffer, cap at 1.1
+  } else if (gameStatus === "final" || gameStatus === "post") {
+    // Completed game - show full domain
+    domainMax = lastT > 1 ? lastT : 1.0;
+  } else {
+    // Live game without situation data - use last data point, don't assume full game
+    domainMax = Math.max(lastT, 0.1); // Use last data point time
+  }
 
   const homePct = lastPoint.home;
   const awayPct = lastPoint.away;
@@ -240,7 +246,8 @@ export default function WinProb({
   const homeWins = homePct > 50;
 
   // Calculate ticks based on game progress - only show ticks up to current point
-  const visibleQuarterTicks = QUARTER_TICKS.filter((t) => t <= domainMax);
+  // Add a small tolerance to ensure we show the current quarter tick
+  const visibleQuarterTicks = QUARTER_TICKS.filter((t) => t < domainMax - 0.01);
   if (domainMax > 1.0) {
     // Add OT tick if overtime
     visibleQuarterTicks.push(1.05);

@@ -22,10 +22,19 @@ export default function FieldDisplay({
   homeTeamAbbr = "HOME",
   awayTeamAbbr = "AWAY",
 }: Props) {
+  // Debug logging to help troubleshoot yardLine issue
+  console.log("FieldDisplay - situation data:", situation);
+  console.log("FieldDisplay - yardLine value:", situation?.yardLine);
+
   // Use situation data if available, otherwise use defaults
-  const yardLine = situation?.yardLine || 50;
+  // Handle yardLine carefully - 0 is a valid value (goal line)
+  const yardLine = situation?.yardLine !== undefined && situation?.yardLine !== null
+    ? situation.yardLine
+    : 50;
   const possessionTeamId = situation?.possessionTeamId || null;
   const isRedZone = situation?.isRedZone || false;
+
+  console.log("FieldDisplay - calculated yardLine:", yardLine, "possessionTeamId:", possessionTeamId);
 
   // ESPN's coordinate system:
   // x=0 to x=50: Away end zone
@@ -156,11 +165,11 @@ export default function FieldDisplay({
           <rect fill="#e2ce23" x="587" y="42" width="2" height="2"></rect>
         </g>
 
-        {/* End zone team names */}
+        {/* End zone team names - rotated 90 degrees like ESPN */}
         <g className="EndzoneTeamNames EndzoneTeamNames--away EndzoneTeamNames--desktop">
           <svg x="0" y="35" width="50" height="45">
             <g className="EndzoneTeamNames__scale EndzoneTeamNames__scale--medium">
-              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" className="EndzoneTeamNames__text">
+              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" className="EndzoneTeamNames__text" transform="rotate(-90 25 22.5)">
                 {awayTeamAbbr}
               </text>
             </g>
@@ -169,7 +178,7 @@ export default function FieldDisplay({
         <g className="EndzoneTeamNames EndzoneTeamNames--home EndzoneTeamNames--desktop">
           <svg x="550" y="35" width="50" height="45">
             <g className="EndzoneTeamNames__scale EndzoneTeamNames__scale--large">
-              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" className="EndzoneTeamNames__text">
+              <text x="50%" y="50%" dominantBaseline="middle" textAnchor="middle" className="EndzoneTeamNames__text" transform="rotate(-90 25 22.5)">
                 {homeTeamAbbr}
               </text>
             </g>
