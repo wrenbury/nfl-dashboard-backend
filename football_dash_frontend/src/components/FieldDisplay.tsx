@@ -46,8 +46,8 @@ export default function FieldDisplay({
   const ballX = endZoneWidth + (yardPosition / 100) * playingFieldWidth;
   const ballY = fieldHeight / 2;
 
-  // Determine possession marker
-  const hasPossession = possessionTeamId ? true : false;
+  // Always show ball during live games (even if no possession data)
+  const showBall = true;
 
   return (
     <div className="w-full">
@@ -237,7 +237,7 @@ export default function FieldDisplay({
           })}
 
           {/* Ball marker */}
-          {hasPossession && (
+          {showBall && (
             <g>
               {/* Ball position line */}
               <line

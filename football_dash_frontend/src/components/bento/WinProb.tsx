@@ -16,6 +16,7 @@ type Props = {
   homeTeam?: string;
   awayTeam?: string;
   gameStatus?: string; // "pre", "in", "final", "post", etc.
+  situation?: any; // Current game situation with clock, period info
 };
 
 type RawWinProbPoint = {
@@ -167,6 +168,7 @@ export default function WinProb({
   homeTeam = "Home",
   awayTeam = "Away",
   gameStatus,
+  situation,
 }: Props) {
   const data = normalizeWinProb(winProbability);
 
@@ -183,8 +185,38 @@ export default function WinProb({
 
   const lastPoint = data[data.length - 1]!;
   const lastT = lastPoint.t || 0;
-  // Don't force domain to full game - show only up to current point
-  const domainMax = lastT > 1 ? lastT : lastT; // Allow partial games, extend for OT
+
+  // Calculate current game time from situation if available (for live games)
+  let currentGameTime: number | null = null;
+  if (situation && gameStatus !== "final" && gameStatus !== "post") {
+    const period = situation.period;
+    const clock = situation.clock;
+
+    if (typeof period === "number" && clock) {
+      const secondsRemainingInPeriod = parseClockToSecondsRemaining(clock);
+      if (secondsRemainingInPeriod !== null) {
+        if (period > 4) {
+          // Overtime
+          const elapsedInOT = QUARTER_SECONDS - secondsRemainingInPeriod;
+          currentGameTime = 1.0 + (elapsedInOT / QUARTER_SECONDS) * 0.1;
+        } else {
+          // Regular time
+          const elapsedInPeriod = QUARTER_SECONDS - secondsRemainingInPeriod;
+          const baseElapsedBefore = (period - 1) * QUARTER_SECONDS;
+          const totalElapsed = baseElapsedBefore + elapsedInPeriod;
+          currentGameTime = totalElapsed / TOTAL_REG_SECONDS;
+        }
+      }
+    }
+  }
+
+  // Set domain to actual game progress (don't extend to full game during live games)
+  // Use current game time if available, otherwise use last data point
+  const domainMax = currentGameTime !== null
+    ? Math.max(currentGameTime, 0.1) // Use calculated current time for live games
+    : lastT > 1
+    ? lastT // Allow OT to extend beyond 1.0
+    : Math.max(lastT, 0.1); // Minimum 10% to avoid empty chart
 
   const homePct = lastPoint.home;
   const awayPct = lastPoint.away;
