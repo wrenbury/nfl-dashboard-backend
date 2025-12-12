@@ -1,0 +1,240 @@
+/* ESPN Field Display Styles */
+
+.FieldView {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+}
+
+.FieldSVG {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* Field fills */
+.tenYardFill {
+  fill: #2d5016;
+}
+
+.tenYardFill--dark {
+  fill: #1e5230;
+}
+
+.redzone--left,
+.redzone--right {
+  fill: #2d5016;
+}
+
+/* Field lines */
+.tenYardLine {
+  stroke: white;
+  stroke-width: 1;
+  opacity: 0.6;
+}
+
+.oneYardLine {
+  stroke: white;
+  stroke-width: 0.5;
+  opacity: 0.3;
+}
+
+.side-overlay {
+  fill: rgba(0, 0, 0, 0.1);
+}
+
+/* End zone team names */
+.EndzoneTeamNames__text {
+  fill: white;
+  font-weight: bold;
+  font-size: 18px;
+  opacity: 0.8;
+}
+
+.EndzoneTeamNames__scale--large .EndzoneTeamNames__text {
+  font-size: 16px;
+}
+
+.EndzoneTeamNames__scale--medium .EndzoneTeamNames__text {
+  font-size: 14px;
+}
+
+/* Ball definitions */
+.BallDefs__Ball {
+  fill: #8b4513;
+  stroke: #5d2f0f;
+  stroke-width: 0.5;
+}
+
+.BallDefs__Laces {
+  fill: white;
+}
+
+.BallDefs__Laces--spiraling {
+  fill: white;
+  opacity: 0.9;
+}
+
+/* Drive markers */
+.DriveStart {
+  stroke: #fbbf24;
+  stroke-width: 3;
+  stroke-dasharray: 8, 4;
+  opacity: 0.7;
+  fill: none;
+}
+
+/* Ball path animations */
+.BallPath {
+  stroke: #fbbf24;
+  stroke-width: 2;
+  fill: none;
+  opacity: 0.8;
+}
+
+.BallPath--pass {
+  stroke-dasharray: 4, 2;
+}
+
+.BallPath__mask {
+  stroke: white;
+  stroke-width: 2;
+  fill: none;
+}
+
+.BallPath__Ball {
+  opacity: 1;
+}
+
+.BallPath__Ball--fade {
+  opacity: 0;
+}
+
+/* Team logo bubble */
+.TeamLogoBubble {
+  opacity: 0;
+}
+
+.TeamLogoBubble.fadeIn {
+  animation: fadeIn 0.5s ease-in forwards;
+}
+
+.TeamLogoBubble__bubble {
+  opacity: 0.9;
+}
+
+.TeamLogoBubble__image {
+  opacity: 1;
+}
+
+.TeamLogoBubble__arrow {
+  fill: var(--color-combo-iron-disableddark, #666);
+}
+
+/* Play fader for animations */
+.PlayFader {
+  opacity: 1;
+}
+
+.PlayFader--fade-out {
+  opacity: 0;
+  animation: fadeOut 0.3s ease-out forwards;
+}
+
+/* Field markers (yard numbers below field) */
+.FieldView__markers {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  margin-top: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  color: #666;
+}
+
+.FieldView__markers > div {
+  flex: 1;
+  text-align: center;
+}
+
+.FieldView__markers__awayteam,
+.FieldView__markers__hometeam {
+  color: #333;
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes moveBallRush {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes moveBallPass {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+/* Stat badge */
+.StatBadge {
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: bold;
+  display: inline-block;
+}
+
+.StatBadge__Text {
+  white-space: nowrap;
+}
