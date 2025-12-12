@@ -147,7 +147,8 @@ export default function Game() {
           Back to {sport === "college-football" ? "CFB" : "NFL"} scoreboard
         </Link>
         <div className="text-xs text-slate-400 text-right">
-          {headerDate && (
+          {/* Only show scheduled time if game is not live */}
+          {!isLive && headerDate && (
             <span>{headerDate.toLocaleString(undefined, {
               weekday: "short",
               month: "short",
@@ -158,7 +159,7 @@ export default function Game() {
           )}
           {venue && (
             <>
-              <span className="mx-1.5 opacity-50">•</span>
+              {!isLive && headerDate && <span className="mx-1.5 opacity-50">•</span>}
               <span>{venue}</span>
             </>
           )}
@@ -277,6 +278,7 @@ export default function Game() {
               homeTeam={homeName}
               awayTeam={awayName}
               gameStatus={statusText.toLowerCase().includes("final") ? "final" : undefined}
+              situation={situation}
             />
 
             {/* TODO: Additional analytics can go here */}
