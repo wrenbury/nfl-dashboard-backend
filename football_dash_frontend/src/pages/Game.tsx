@@ -32,11 +32,14 @@ const fetcher = async (url: string) => {
 };
 
 export default function Game() {
-  const { sport = "nfl", id = "" } = useParams();
+  const { sport: urlSport = "nfl", id = "" } = useParams();
   const [activeTab, setActiveTab] = useState<Tab>("gamecast");
 
+  // Map URL sport param to API sport param
+  const sport: Sport = urlSport === "cfb" ? "college-football" : "nfl";
+
   const { data, error, isLoading } = useSWR<GameDetails>(
-    id ? API.game(sport as Sport, id) : null,
+    id ? API.game(sport, id) : null,
     fetcher
   );
 
@@ -126,9 +129,11 @@ export default function Game() {
   const venue = summary.venue || null;
 
   // Check if game is live (for showing field display)
-  const isLive = statusText && !statusText.toLowerCase().includes("final") &&
+  // Game is live if it's not final/scheduled AND either has situation data OR has a clock/quarter
+  const isLive = statusText &&
+                 !statusText.toLowerCase().includes("final") &&
                  !statusText.toLowerCase().includes("scheduled") &&
-                 situation !== null;
+                 (situation !== null || clockQuarterLine !== null);
 
   return (
     <section className="space-y-5">
@@ -253,8 +258,8 @@ export default function Game() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
           {/* LEFT COLUMN - Field and Analytics */}
           <div className="space-y-4">
-            {/* Field Display - only show during live games */}
-            {isLive && situation && (
+            {/* Field Display - show during live games (even without full situation data) */}
+            {isLive && (
               <FieldDisplay
                 situation={situation}
                 homeTeamId={home?.team?.id || ""}
