@@ -3,7 +3,7 @@
 import { GameSituation } from "../types";
 
 type Props = {
-  situation: GameSituation;
+  situation: GameSituation | null;
   homeTeamId: string;
   awayTeamId: string;
   homeTeamColor?: string;
@@ -21,7 +21,12 @@ export default function FieldDisplay({
   homeTeamAbbr = "HOME",
   awayTeamAbbr = "AWAY",
 }: Props) {
-  const { yardLine, possessionTeamId, down, distance, isRedZone } = situation;
+  // Use situation data if available, otherwise use defaults
+  const yardLine = situation?.yardLine || 50;
+  const possessionTeamId = situation?.possessionTeamId || null;
+  const down = situation?.down || null;
+  const distance = situation?.distance || null;
+  const isRedZone = situation?.isRedZone || false;
 
   // Determine which end zone is which
   // In NFL, yard lines go 0-100, with 50 being midfield

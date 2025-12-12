@@ -182,8 +182,9 @@ export default function WinProb({
   }
 
   const lastPoint = data[data.length - 1]!;
-  const lastT = lastPoint.t || 1;
-  const domainMax = Math.max(1, lastT);
+  const lastT = lastPoint.t || 0;
+  // Don't force domain to full game - show only up to current point
+  const domainMax = lastT > 1 ? lastT : lastT; // Allow partial games, extend for OT
 
   const homePct = lastPoint.home;
   const awayPct = lastPoint.away;
@@ -194,7 +195,7 @@ export default function WinProb({
   const isGameComplete = gameStatus === "final" || gameStatus === "post" || lastT >= 1;
   const homeWins = homePct > 50;
 
-  // Calculate ticks based on game progress
+  // Calculate ticks based on game progress - only show ticks up to current point
   const visibleQuarterTicks = QUARTER_TICKS.filter((t) => t <= domainMax);
   if (domainMax > 1.0) {
     // Add OT tick if overtime
@@ -331,10 +332,10 @@ export default function WinProb({
         </ResponsiveContainer>
 
         {/* Y-axis team labels */}
-        <div className="absolute left-0 top-1 text-[9px] text-slate-400 uppercase tracking-wider">
+        <div className="absolute left-0 top-4 text-[9px] text-slate-400 uppercase tracking-wider">
           {homeTeam}
         </div>
-        <div className="absolute left-0 bottom-1 text-[9px] text-slate-400 uppercase tracking-wider">
+        <div className="absolute left-0 bottom-4 text-[9px] text-slate-400 uppercase tracking-wider">
           {awayTeam}
         </div>
       </div>
