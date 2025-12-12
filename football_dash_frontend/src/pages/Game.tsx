@@ -277,6 +277,9 @@ export default function Game() {
               winProbability={data.winProbability}
               homeTeam={homeName}
               awayTeam={awayName}
+              homeTeamId={home?.team?.id || ""}
+              awayTeamId={away?.team?.id || ""}
+              league={sport}
               gameStatus={statusText.toLowerCase().includes("final") ? "final" : undefined}
               situation={situation}
             />

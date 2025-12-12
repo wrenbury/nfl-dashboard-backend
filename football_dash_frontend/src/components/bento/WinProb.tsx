@@ -15,6 +15,9 @@ type Props = {
   winProbability: any;
   homeTeam?: string;
   awayTeam?: string;
+  homeTeamId?: string;
+  awayTeamId?: string;
+  league?: string;
   gameStatus?: string; // "pre", "in", "final", "post", etc.
   situation?: any; // Current game situation with clock, period info
 };
@@ -163,10 +166,19 @@ function formatYAxisTick(v: number): string {
   return "";
 }
 
+// Generate team logo URL using ESPN combiner API
+function getTeamLogoUrl(teamId: string | undefined, league: string = "nfl"): string | null {
+  if (!teamId) return null;
+  return `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${league}/500/${teamId}.png&h=40&w=40`;
+}
+
 export default function WinProb({
   winProbability,
   homeTeam = "Home",
   awayTeam = "Away",
+  homeTeamId,
+  awayTeamId,
+  league = "nfl",
   gameStatus,
   situation,
 }: Props) {
@@ -243,23 +255,44 @@ export default function WinProb({
   else if (lastQuarter === 4) endLabel = "End 4th";
   else if (lastQuarter && lastQuarter > 4) endLabel = "End OT";
 
+  const awayLogoUrl = getTeamLogoUrl(awayTeamId, league);
+  const homeLogoUrl = getTeamLogoUrl(homeTeamId, league);
+
   return (
     <div className="card flex flex-col">
-      {/* Header row with team names and percentages */}
+      {/* Header row with team logos, names and percentages */}
       <div className="flex items-center justify-between mb-3">
         <div className="text-sm font-semibold">Win Probability</div>
         <div className="flex items-center gap-6 text-xs uppercase tracking-wide">
-          <div className="flex flex-col items-center">
-            <span className="opacity-60">{awayTeam}</span>
-            <span className={`text-base font-semibold ${!homeWins && isGameComplete ? "text-green-400" : ""}`}>
-              {awayPctLabel}
-            </span>
+          <div className="flex items-center gap-2">
+            {awayLogoUrl && (
+              <img
+                src={awayLogoUrl}
+                alt={awayTeam}
+                className="w-8 h-8 object-contain"
+              />
+            )}
+            <div className="flex flex-col items-center">
+              <span className="opacity-60">{awayTeam}</span>
+              <span className={`text-base font-semibold ${!homeWins && isGameComplete ? "text-green-400" : ""}`}>
+                {awayPctLabel}
+              </span>
+            </div>
           </div>
-          <div className="flex flex-col items-center">
-            <span className="opacity-60">{homeTeam}</span>
-            <span className={`text-base font-semibold ${homeWins && isGameComplete ? "text-green-400" : ""}`}>
-              {homePctLabel}
-            </span>
+          <div className="flex items-center gap-2">
+            {homeLogoUrl && (
+              <img
+                src={homeLogoUrl}
+                alt={homeTeam}
+                className="w-8 h-8 object-contain"
+              />
+            )}
+            <div className="flex flex-col items-center">
+              <span className="opacity-60">{homeTeam}</span>
+              <span className={`text-base font-semibold ${homeWins && isGameComplete ? "text-green-400" : ""}`}>
+                {homePctLabel}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -268,17 +301,16 @@ export default function WinProb({
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
             <defs>
-              {/* Gradient for home team win probability area */}
+              {/* ESPN-style split gradients */}
+              {/* Home team gradient (above 50%) - fills from 50% to top */}
               <linearGradient id="homeWpGradient" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
-                <stop offset="50%" stopColor="#3b82f6" stopOpacity={0.1} />
-                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.05} />
               </linearGradient>
-              {/* Gradient for away team (below 50%) */}
-              <linearGradient id="awayWpGradient" x1="0" y1="1" x2="0" y2="0">
-                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.4} />
-                <stop offset="50%" stopColor="#ef4444" stopOpacity={0.1} />
-                <stop offset="100%" stopColor="#ef4444" stopOpacity={0} />
+              {/* Away team gradient (below 50%) - fills from 50% to bottom */}
+              <linearGradient id="awayWpGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ef4444" stopOpacity={0.05} />
+                <stop offset="100%" stopColor="#ef4444" stopOpacity={0.5} />
               </linearGradient>
             </defs>
 
@@ -318,7 +350,22 @@ export default function WinProb({
             {/* Center 50% reference line */}
             <ReferenceLine y={50} stroke="#64748b" strokeDasharray="4 4" />
 
-            {/* Home team area fill (above 50%) */}
+            {/* Away team area (below 50%) - with dashed line */}
+            <Area
+              type="monotone"
+              dataKey="away"
+              stroke="#ef4444"
+              strokeWidth={2}
+              strokeDasharray="4 4"
+              fill="url(#awayWpGradient)"
+              fillOpacity={1}
+              isAnimationActive={false}
+              dot={false}
+              activeDot={{ r: 4, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }}
+              baseLine={50}
+            />
+
+            {/* Home team area (above 50%) - solid line */}
             <Area
               type="monotone"
               dataKey="home"
@@ -356,7 +403,58 @@ export default function WinProb({
                   clockLabel = `${mins}:${secs.toString().padStart(2, "0")}`;
                 }
 
+                // Format quarter label
+                let quarterLabel = "";
+                if (point.q) {
+                  if (point.q === 1) quarterLabel = "1st Quarter";
+                  else if (point.q === 2) quarterLabel = "2nd Quarter";
+                  else if (point.q === 3) quarterLabel = "3rd Quarter";
+                  else if (point.q === 4) quarterLabel = "4th Quarter";
+                  else if (point.q > 4) quarterLabel = `OT ${point.q - 4}`;
+                }
+
+                // Format time remaining
+                let timeLabel = "";
+                if (point.secondsLeft !== null && point.secondsLeft !== undefined) {
+                  const minutes = Math.floor(point.secondsLeft / 60);
+                  const seconds = point.secondsLeft % 60;
+                  timeLabel = `${minutes}:${seconds.toString().padStart(2, "0")} remaining`;
+                }
+
+                // Calculate swing from 50%
+                const homeSwing = point.home - 50;
+                const swingText = homeSwing > 0
+                  ? `${homeTeam} +${Math.abs(homeSwing).toFixed(1)}%`
+                  : homeSwing < 0
+                  ? `${awayTeam} +${Math.abs(homeSwing).toFixed(1)}%`
+                  : "Even";
+
                 return (
+                  <div className="bg-slate-900/95 backdrop-blur-sm border border-slate-700 rounded-lg px-4 py-3 shadow-xl min-w-[200px]">
+                    {/* Quarter and time header */}
+                    {quarterLabel && (
+                      <div className="text-xs font-semibold text-slate-300 mb-2 pb-2 border-b border-slate-700">
+                        {quarterLabel}
+                        {timeLabel && <div className="text-xs text-slate-400 font-normal mt-0.5">{timeLabel}</div>}
+                      </div>
+                    )}
+
+                    {/* Win probabilities */}
+                    <div className="space-y-1.5 mb-2">
+                      <div className="flex items-center justify-between gap-6">
+                        <span className="text-sm text-slate-300">{homeTeam}</span>
+                        <span className="text-base font-bold text-blue-400">{homeWP}%</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-6">
+                        <span className="text-sm text-slate-300">{awayTeam}</span>
+                        <span className="text-base font-bold text-red-400">{awayWP}%</span>
+                      </div>
+                    </div>
+
+                    {/* Advantage indicator */}
+                    <div className="pt-2 border-t border-slate-700">
+                      <div className="text-xs text-slate-400">
+                        Advantage: <span className="text-slate-200 font-medium">{swingText}</span>
                   <div className="bg-slate-900 border border-slate-700 rounded-lg p-3 shadow-xl">
                     {/* Time header */}
                     <div className="text-xs text-slate-400 mb-2 pb-2 border-b border-slate-700">
