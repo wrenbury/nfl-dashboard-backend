@@ -70,6 +70,8 @@ class GameDetails(BaseModel):
     winProbability: Optional[list] = None
     # NEW, backwards-compatible extension
     situation: Optional[GameSituation] = None
+    # CFB-specific analytics from CollegeFootballData API
+    cfbAnalytics: Optional[dict] = None
 
 
 class Week(BaseModel):

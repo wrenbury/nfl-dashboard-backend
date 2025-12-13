@@ -37,7 +37,7 @@ export default function Game() {
   const [activeTab, setActiveTab] = useState<Tab>("gamecast");
 
   // Map URL sport param to API sport param
-  const sport: Sport = urlSport === "cfb" ? "college-football" : "nfl";
+  const sport: Sport = (urlSport === "cfb" || urlSport === "college-football") ? "college-football" : "nfl";
 
   const { data, error, isLoading } = useSWR<GameDetails>(
     id ? API.game(sport, id) : null,
