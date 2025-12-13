@@ -10,8 +10,21 @@ type Props = {
 };
 
 export default function CfbAnalytics({ analytics, homeTeam = "Home", awayTeam = "Away" }: Props) {
+  // Debug logging
+  console.log("CfbAnalytics - analytics:", analytics);
+  console.log("CfbAnalytics - has advanced:", analytics?.advanced != null);
+  console.log("CfbAnalytics - has drives:", analytics?.drives != null);
+
   if (!analytics || (!analytics.advanced && !analytics.drives)) {
-    return null;
+    console.log("CfbAnalytics - No analytics data available");
+    return (
+      <div className="card">
+        <h3 className="font-semibold mb-2">CFB Analytics</h3>
+        <div className="text-sm opacity-60">
+          Advanced analytics data is not available for this game.
+        </div>
+      </div>
+    );
   }
 
   const advanced = analytics.advanced;
