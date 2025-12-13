@@ -8,6 +8,7 @@ import BoxScore from "../components/bento/BoxScore";
 import TeamStats from "../components/bento/TeamStats";
 import PlayByPlay from "../components/bento/PlayByPlay";
 import WinProb from "../components/bento/WinProb";
+import CfbAnalytics from "../components/bento/CfbAnalytics";
 import FieldDisplay from "../components/FieldDisplay";
 import DriveInfo from "../components/DriveInfo";
 import { GameDetails } from "../types";
@@ -284,7 +285,14 @@ export default function Game() {
               situation={situation}
             />
 
-            {/* TODO: Additional analytics can go here */}
+            {/* CFB Advanced Analytics */}
+            {sport === "college-football" && data.cfbAnalytics && (
+              <CfbAnalytics
+                analytics={data.cfbAnalytics}
+                homeTeam={homeName}
+                awayTeam={awayName}
+              />
+            )}
           </div>
 
           {/* RIGHT COLUMN - Drive Info and Last Play */}
