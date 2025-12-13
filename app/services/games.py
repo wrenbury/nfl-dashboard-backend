@@ -61,6 +61,103 @@ def _extract_possession_team_id(raw_situation: Dict[str, Any]) -> str | None:
     return str(possession)
 
 
+def _build_cfb_boxscore(player_stats: list, home_team_name: str, away_team_name: str) -> list:
+    """Build boxscore categories from CFBD player stats."""
+    if not player_stats:
+        return []
+
+    categories = []
+
+    # Group stats by team and category
+    passing = {"home": [], "away": []}
+    rushing = {"home": [], "away": []}
+    receiving = {"home": [], "away": []}
+
+    for team_data in player_stats:
+        team_name = team_data.get("team") or ""
+        side = "home" if team_name == home_team_name else "away"
+        categories_data = team_data.get("categories") or []
+
+        for cat in categories_data:
+            cat_name = cat.get("name", "")
+            types = cat.get("types") or []
+
+            for type_data in types:
+                type_name = type_data.get("name", "")
+                athletes = type_data.get("athletes") or []
+
+                for athlete in athletes:
+                    name = athlete.get("name", "")
+                    stat = athlete.get("stat", "")
+
+                    if cat_name == "passing":
+                        passing[side].append([name, stat])
+                    elif cat_name == "rushing":
+                        rushing[side].append([name, stat])
+                    elif cat_name == "receiving":
+                        receiving[side].append([name, stat])
+
+    # Build categories
+    if passing["home"] or passing["away"]:
+        rows = []
+        rows.extend([[f"{home_team_name} {p[0]}", p[1]] for p in passing["home"][:5]])
+        rows.extend([[f"{away_team_name} {p[0]}", p[1]] for p in passing["away"][:5]])
+        if rows:
+            categories.append(BoxScoreCategory(title="Passing", rows=rows))
+
+    if rushing["home"] or rushing["away"]:
+        rows = []
+        rows.extend([[f"{home_team_name} {r[0]}", r[1]] for r in rushing["home"][:5]])
+        rows.extend([[f"{away_team_name} {r[0]}", r[1]] for r in rushing["away"][:5]])
+        if rows:
+            categories.append(BoxScoreCategory(title="Rushing", rows=rows))
+
+    if receiving["home"] or receiving["away"]:
+        rows = []
+        rows.extend([[f"{home_team_name} {r[0]}", r[1]] for r in receiving["home"][:5]])
+        rows.extend([[f"{away_team_name} {r[0]}", r[1]] for r in receiving["away"][:5]])
+        if rows:
+            categories.append(BoxScoreCategory(title="Receiving", rows=rows))
+
+    return categories
+
+
+def _build_cfb_team_stats(team_stats: list) -> list:
+    """Build team stats categories from CFBD team stats."""
+    if not team_stats or len(team_stats) < 2:
+        return []
+
+    categories = []
+
+    # Assuming team_stats is a list with two teams
+    home_stats = team_stats[0] if len(team_stats) > 0 else {}
+    away_stats = team_stats[1] if len(team_stats) > 1 else {}
+
+    # Build basic stats category
+    stats_rows = []
+
+    # Map common stat fields
+    stat_mappings = [
+        ("Total Yards", "totalYards"),
+        ("Passing Yards", "passingYards"),
+        ("Rushing Yards", "rushingYards"),
+        ("Turnovers", "turnovers"),
+        ("Penalties", "penalties"),
+        ("Time of Possession", "possessionTime"),
+    ]
+
+    for label, field in stat_mappings:
+        home_val = home_stats.get("stats", {}).get(field, "-")
+        away_val = away_stats.get("stats", {}).get(field, "-")
+        if home_val != "-" or away_val != "-":
+            stats_rows.append([label, str(away_val), str(home_val)])
+
+    if stats_rows:
+        categories.append(BoxScoreCategory(title="Team Stats", headers=["Stat", "Away", "Home"], rows=stats_rows))
+
+    return categories
+
+
 def _cfb_game_details(event_id: str) -> GameDetails:
     """
     Build GameDetails for CFB using CollegeFootballData API.
@@ -199,15 +296,58 @@ def _cfb_game_details(event_id: str) -> GameDetails:
     except:
         pass
 
-    # CFBD doesn't provide win probability or detailed box scores like ESPN
-    # Return minimal game details
+    # Get advanced analytics from CFBD
+    advanced_stats = None
+    try:
+        advanced_stats = cfbd.advanced_game_stats(game_id)
+    except:
+        pass
+
+    # Get player stats from CFBD
+    player_stats = None
+    try:
+        player_stats = cfbd.player_game_stats(game_id)
+    except:
+        pass
+
+    # Get team stats from CFBD
+    team_stats_raw = None
+    try:
+        team_stats_raw = cfbd.team_game_stats(game_id)
+    except:
+        pass
+
+    # Get drives data from CFBD
+    drives = None
+    try:
+        drives = cfbd.game_drives(game_id)
+    except:
+        pass
+
+    # Build box score categories from available data
+    boxscore = []
+    team_stats_categories = []
+
+    # Add player stats if available
+    if player_stats:
+        boxscore.extend(_build_cfb_boxscore(player_stats, home_team_name, away_team_name))
+
+    # Add team stats if available
+    if team_stats_raw:
+        team_stats_categories.extend(_build_cfb_team_stats(team_stats_raw))
+
+    # Return comprehensive game details with CFB analytics
     return GameDetails(
         summary=summary,
-        boxscore=[],
-        teamStats=[],
+        boxscore=boxscore,
+        teamStats=team_stats_categories,
         plays=plays,
         winProbability=None,
         situation=None,
+        cfbAnalytics={
+            "advanced": advanced_stats,
+            "drives": drives,
+        } if advanced_stats or drives else None,
     )
 
 

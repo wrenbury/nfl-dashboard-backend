@@ -53,4 +53,8 @@ export type GameDetails = {
   plays?: any[] | null;
   winProbability?: any[] | null;
   situation?: GameSituation | null;
+  cfbAnalytics?: {
+    advanced?: any;
+    drives?: any[];
+  } | null;
 };
