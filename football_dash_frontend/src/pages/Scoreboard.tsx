@@ -117,6 +117,17 @@ function getCurrentNflWeek(): number {
 }
 
 // Group games by date for display
+function getCurrentCFBYear(): number {
+  const now = new Date();
+  const month = now.getMonth(); // 0-11 (0 = January)
+  const year = now.getFullYear();
+
+  // CFB season runs from August (month 7) to January (month 0)
+  // If we're in Jan-July, the current CFB season is from the previous year
+  // If we're in Aug-Dec, the current CFB season is from this year
+  return month >= 7 ? year : year - 1;
+}
+
 function groupGamesByDate(games: any[]): Map<string, any[]> {
   const grouped = new Map<string, any[]>();
 
