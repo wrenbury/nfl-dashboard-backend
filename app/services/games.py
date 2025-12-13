@@ -124,7 +124,12 @@ def _build_cfb_boxscore(player_stats: list, home_team_name: str, away_team_name:
 
 def _build_cfb_team_stats(team_stats: list) -> list:
     """Build team stats categories from CFBD team stats."""
-    if not team_stats or len(team_stats) < 2:
+    if not team_stats:
+        print("[_build_cfb_team_stats] No team stats provided")
+        return []
+
+    if len(team_stats) < 2:
+        print(f"[_build_cfb_team_stats] Only {len(team_stats)} team(s) found, need 2. Data: {team_stats}")
         return []
 
     categories = []
@@ -132,6 +137,10 @@ def _build_cfb_team_stats(team_stats: list) -> list:
     # Assuming team_stats is a list with two teams
     home_stats = team_stats[0] if len(team_stats) > 0 else {}
     away_stats = team_stats[1] if len(team_stats) > 1 else {}
+
+    print(f"[_build_cfb_team_stats] Processing {len(team_stats)} teams")
+    print(f"[_build_cfb_team_stats] Team 0 keys: {home_stats.keys() if isinstance(home_stats, dict) else 'not a dict'}")
+    print(f"[_build_cfb_team_stats] Team 1 keys: {away_stats.keys() if isinstance(away_stats, dict) else 'not a dict'}")
 
     # Build basic stats category
     stats_rows = []
@@ -151,6 +160,8 @@ def _build_cfb_team_stats(team_stats: list) -> list:
         away_val = away_stats.get("stats", {}).get(field, "-")
         if home_val != "-" or away_val != "-":
             stats_rows.append([label, str(away_val), str(home_val)])
+
+    print(f"[_build_cfb_team_stats] Built {len(stats_rows)} stat rows")
 
     if stats_rows:
         categories.append(BoxScoreCategory(title="Team Stats", headers=["Stat", "Away", "Home"], rows=stats_rows))
@@ -360,9 +371,12 @@ def _cfb_game_details(event_id: str) -> GameDetails:
         debug_info["api_calls"]["team_stats"] = {
             "success": team_stats_raw is not None,
             "has_data": bool(team_stats_raw),
-            "count": len(team_stats_raw) if isinstance(team_stats_raw, list) else 0
+            "count": len(team_stats_raw) if isinstance(team_stats_raw, list) else 0,
+            "raw_data": team_stats_raw  # Include raw data for debugging
         }
         print(f"[CFB Analytics] Team stats: {team_stats_raw is not None}")
+        if team_stats_raw:
+            print(f"[CFB Analytics] Team stats structure: {str(team_stats_raw)[:500]}")
     except Exception as e:
         error_msg = f"Error fetching team stats: {str(e)}"
         print(f"[CFB Analytics] {error_msg}")
