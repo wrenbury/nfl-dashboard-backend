@@ -167,6 +167,7 @@ def _cfb_game_details(event_id: str) -> GameDetails:
     """
     # CFBD uses integer game IDs
     game_id = int(event_id)
+    print(f"[CFB Game Details] Loading game_id: {game_id}")
 
     # Get game info from CFBD /games endpoint
     # We need to figure out which year/week to fetch - for now we'll try recent weeks
@@ -186,13 +187,18 @@ def _cfb_game_details(event_id: str) -> GameDetails:
                     for g in games:
                         if g.get("id") == game_id:
                             raw_game = g
+                            print(f"[CFB Game Details] Found game in year {year}, week {week}")
                             break
                 if raw_game:
                     break
-            except:
+            except Exception as e:
+                print(f"[CFB Game Details] Error checking year {year}, week {week}: {e}")
                 continue
         if raw_game:
             break
+
+    if not raw_game:
+        print(f"[CFB Game Details] Game {game_id} not found in CFBD /games endpoint")
 
     if not raw_game:
         # Fallback: create minimal game details
@@ -299,30 +305,40 @@ def _cfb_game_details(event_id: str) -> GameDetails:
     # Get advanced analytics from CFBD
     advanced_stats = None
     try:
+        print(f"[CFB Analytics] Fetching advanced stats for game_id: {game_id}")
         advanced_stats = cfbd.advanced_game_stats(game_id)
-    except:
-        pass
+        print(f"[CFB Analytics] Advanced stats: {advanced_stats is not None}, type: {type(advanced_stats)}")
+        if advanced_stats:
+            print(f"[CFB Analytics] Advanced stats data: {str(advanced_stats)[:200]}")
+    except Exception as e:
+        print(f"[CFB Analytics] Error fetching advanced stats: {e}")
 
     # Get player stats from CFBD
     player_stats = None
     try:
+        print(f"[CFB Analytics] Fetching player stats for game_id: {game_id}")
         player_stats = cfbd.player_game_stats(game_id)
-    except:
-        pass
+        print(f"[CFB Analytics] Player stats: {player_stats is not None}")
+    except Exception as e:
+        print(f"[CFB Analytics] Error fetching player stats: {e}")
 
     # Get team stats from CFBD
     team_stats_raw = None
     try:
+        print(f"[CFB Analytics] Fetching team stats for game_id: {game_id}")
         team_stats_raw = cfbd.team_game_stats(game_id)
-    except:
-        pass
+        print(f"[CFB Analytics] Team stats: {team_stats_raw is not None}")
+    except Exception as e:
+        print(f"[CFB Analytics] Error fetching team stats: {e}")
 
     # Get drives data from CFBD
     drives = None
     try:
+        print(f"[CFB Analytics] Fetching drives for game_id: {game_id}")
         drives = cfbd.game_drives(game_id)
-    except:
-        pass
+        print(f"[CFB Analytics] Drives: {drives is not None}, count: {len(drives) if drives and isinstance(drives, list) else 0}")
+    except Exception as e:
+        print(f"[CFB Analytics] Error fetching drives: {e}")
 
     # Build box score categories from available data
     boxscore = []
@@ -337,6 +353,9 @@ def _cfb_game_details(event_id: str) -> GameDetails:
         team_stats_categories.extend(_build_cfb_team_stats(team_stats_raw))
 
     # Return comprehensive game details with CFB analytics
+    has_analytics = advanced_stats is not None or drives is not None
+    print(f"[CFB Analytics] Returning cfbAnalytics: {has_analytics}, advanced: {advanced_stats is not None}, drives: {drives is not None}")
+
     return GameDetails(
         summary=summary,
         boxscore=boxscore,
