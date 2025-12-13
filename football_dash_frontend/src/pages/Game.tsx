@@ -44,6 +44,20 @@ export default function Game() {
     fetcher
   );
 
+  // Debug logging
+  if (data) {
+    console.log('[Game.tsx] Received data:', {
+      sport,
+      id,
+      hasBoxscore: !!data.boxscore,
+      boxscoreLength: data.boxscore?.length || 0,
+      hasTeamStats: !!data.teamStats,
+      teamStatsLength: data.teamStats?.length || 0,
+      hasCfbAnalytics: !!data.cfbAnalytics,
+      summary: data.summary,
+    });
+  }
+
   if (isLoading) {
     return <div className="p-6 text-sm opacity-70">Loading game…</div>;
   }

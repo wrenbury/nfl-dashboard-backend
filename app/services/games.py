@@ -175,25 +175,31 @@ def _cfb_game_details(event_id: str) -> GameDetails:
     # In practice, we'll need to search for the game
     raw_game = None
 
-    # Try current year and previous year
+    # Try current year and previous year, including postseason
     from datetime import datetime
     current_year = datetime.now().year
 
-    for year in [current_year, current_year - 1]:
-        for week in range(1, 17):  # Try all weeks
-            try:
-                games = cfbd.games(year=year, week=week, seasonType="regular")
-                if games:
-                    for g in games:
-                        if g.get("id") == game_id:
-                            raw_game = g
-                            print(f"[CFB Game Details] Found game in year {year}, week {week}")
-                            break
-                if raw_game:
-                    break
-            except Exception as e:
-                print(f"[CFB Game Details] Error checking year {year}, week {week}: {e}")
-                continue
+    for year in [current_year, current_year - 1, current_year - 2]:
+        print(f"[CFB Game Details] Searching year {year}...")
+        for season_type in ["regular", "postseason"]:
+            week_range = range(1, 17) if season_type == "regular" else range(1, 6)
+            for week in week_range:
+                try:
+                    games = cfbd.games(year=year, week=week, seasonType=season_type)
+                    if games:
+                        print(f"[CFB Game Details] Checking {len(games)} games in year {year}, week {week}, {season_type}")
+                        for g in games:
+                            if g.get("id") == game_id:
+                                raw_game = g
+                                print(f"[CFB Game Details] ✓ Found game in year {year}, week {week}, {season_type}")
+                                break
+                    if raw_game:
+                        break
+                except Exception as e:
+                    print(f"[CFB Game Details] Error checking year {year}, week {week}, {season_type}: {e}")
+                    continue
+            if raw_game:
+                break
         if raw_game:
             break
 
