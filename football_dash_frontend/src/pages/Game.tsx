@@ -56,6 +56,11 @@ export default function Game() {
       hasCfbAnalytics: !!data.cfbAnalytics,
       summary: data.summary,
     });
+
+    // Log debug info if available
+    if ((data as any).debug) {
+      console.log('[Game.tsx] Debug info from backend:', (data as any).debug);
+    }
   }
 
   if (isLoading) {

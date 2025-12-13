@@ -72,6 +72,8 @@ class GameDetails(BaseModel):
     situation: Optional[GameSituation] = None
     # CFB-specific analytics from CollegeFootballData API
     cfbAnalytics: Optional[dict] = None
+    # Debug info for troubleshooting
+    debug: Optional[dict] = None
 
 
 class Week(BaseModel):
