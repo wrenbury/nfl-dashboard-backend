@@ -76,10 +76,10 @@ const fetcher = async (url: string) => {
 };
 
 // NFL 2025 season week definitions (approximate)
-function getNflWeeks(year: number) {
+function getNflWeeks(year: number): Week[] {
   // Week 1 typically starts first Thursday after Labor Day
   // These are approximate date ranges for the 2025 season
-  const weeks = [];
+  const weeks: Week[] = [];
   const baseDate = new Date(year, 8, 4); // Sept 4, 2025 approx start
 
   for (let w = 1; w <= 18; w++) {
@@ -89,12 +89,16 @@ function getNflWeeks(year: number) {
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
 
+    // Format dates as YYYY-MM-DD strings
+    const startDate = start.toISOString().split('T')[0];
+    const endDate = end.toISOString().split('T')[0];
+
     weeks.push({
-      week: w,
+      number: w,
       label: `Week ${w}`,
-      startDate: start,
-      endDate: end,
-      dateRange: `${start.toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${end.toLocaleDateString("en-US", { day: "numeric" })}`,
+      startDate,
+      endDate,
+      seasonType: 2, // Regular season
     });
   }
   return weeks;
@@ -106,13 +110,16 @@ function getCurrentNflWeek(): number {
   const weeks = getNflWeeks(year);
 
   for (const w of weeks) {
-    if (now >= w.startDate && now <= w.endDate) {
-      return w.week;
+    const start = new Date(w.startDate + 'T00:00:00');
+    const end = new Date(w.endDate + 'T23:59:59');
+    if (now >= start && now <= end) {
+      return w.number;
     }
   }
 
   // If before season, return week 1; if after, return week 18
-  if (now < weeks[0].startDate) return 1;
+  const firstStart = new Date(weeks[0].startDate + 'T00:00:00');
+  if (now < firstStart) return 1;
   return 18;
 }
 
@@ -160,7 +167,7 @@ export default function Scoreboard({ sport }: Props) {
   const [selectedWeek, setSelectedWeek] = useState(getCurrentNflWeek());
 
   const weeks = useMemo(() => getNflWeeks(currentYear), [currentYear]);
-  const currentWeekData = weeks.find((w) => w.week === selectedWeek);
+  const currentWeekData = weeks.find((w) => w.number === selectedWeek);
 
   // Use week parameter for NFL
   const endpoint = API.scoreboard(sport, { week: selectedWeek });
