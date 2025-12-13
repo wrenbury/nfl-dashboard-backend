@@ -231,95 +231,22 @@ export default function Scoreboard({ sport }: Props) {
     );
   }
 
-  // College football view with week selector, year selector, and conference filter
-  // Generate year options (current season and previous 5 years)
-  const currentCFBYear = getCurrentCFBYear();
-  const yearOptions = Array.from({ length: 6 }, (_, i) => currentCFBYear - i);
-
-  const handleWeekChange = (delta: number) => {
-    setSelectedWeek((prev) => Math.max(1, Math.min(18, prev + delta)));
-  };
-
+  // College football view - simple week selector like NFL
   return (
-    <section className="space-y-5">
-      {/* Week Selector Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold">NFL Scoreboard</h1>
-      </div>
+    <section className="space-y-4">
+      <h1 className="text-2xl font-bold">CFB Scoreboard</h1>
 
-      {/* Week Navigation Bar */}
-      <div className="card p-0 overflow-hidden">
-        <div className="flex items-center justify-between border-b border-slate-700/50">
-          {/* Left arrow */}
-          <button
-            onClick={() => handleWeekChange(-1)}
-            disabled={selectedWeek <= 1}
-            className="p-3 hover:bg-slate-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
-            <span className="text-lg">←</span>
-          </button>
+      {/* Week selector */}
+      {weeks.length > 0 && selectedWeek !== null && (
+        <WeekSelector
+          weeks={weeks}
+          selectedWeek={selectedWeek}
+          onWeekChange={setSelectedWeek}
+        />
+      )}
 
-          {/* Week tabs */}
-          <div className="flex-1 overflow-x-auto scrollbar-hide">
-            <div className="flex items-center justify-center gap-1 py-2 px-2 min-w-max">
-              {weeks.slice(Math.max(0, selectedWeek - 4), selectedWeek + 3).map((w) => (
-                <button
-                  key={w.week}
-                  onClick={() => setSelectedWeek(w.week)}
-                  className={`px-3 py-1.5 rounded text-sm whitespace-nowrap transition ${
-                    w.week === selectedWeek
-                      ? "bg-blue-600 text-white font-semibold"
-                      : "hover:bg-slate-800/50 text-slate-400"
-                  }`}
-                >
-                  <div className="font-medium">Week {w.week}</div>
-                  <div className="text-[10px] opacity-70">{w.dateRange}</div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Right arrow */}
-          <button
-            onClick={() => handleWeekChange(1)}
-            disabled={selectedWeek >= 18}
-            className="p-3 hover:bg-slate-800/50 disabled:opacity-30 disabled:cursor-not-allowed transition"
-          >
-            <span className="text-lg">→</span>
-          </button>
-        </div>
-
-        {/* Current week info */}
-        <div className="px-4 py-2 bg-slate-900/50 text-center text-sm text-slate-400">
-          {currentWeekData?.label} • {currentWeekData?.dateRange}
-        </div>
-
-        {/* Conference filter */}
-        {conferences.length > 0 && (
-          <div className="flex items-center gap-3">
-            <label htmlFor="conference-filter" className="text-sm font-medium text-slate-300">
-              Conference:
-            </label>
-            <select
-              id="conference-filter"
-              value={selectedConference}
-              onChange={(e) => setSelectedConference(e.target.value)}
-              className="px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent"
-            >
-              <option value="">All Conferences</option>
-              {conferences.map((conf) => (
-                <option key={conf.id} value={conf.abbreviation}>
-                  {conf.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
-
-      {/* Loading / Error States */}
       {isLoading && (
-        <div className="text-sm opacity-80 text-center py-8">Loading games...</div>
+        <div className="text-sm opacity-80">Loading scoreboard...</div>
       )}
 
       {error && (
@@ -330,30 +257,29 @@ export default function Scoreboard({ sport }: Props) {
         </div>
       )}
 
-      {/* Games List */}
-      {!isLoading && !error && (
-        <div className="space-y-6">
-          {gamesByDate.size === 0 ? (
-            <div className="text-center text-slate-400 py-8">
-              No games scheduled for Week {selectedWeek}
-            </div>
-          ) : (
-            Array.from(gamesByDate.entries()).map(([date, dateGames]) => (
-              <div key={date} className="space-y-3">
-                {/* Date header */}
-                <div className="text-sm font-medium text-slate-400 border-b border-slate-800 pb-2">
-                  {date}
-                </div>
+      {!isLoading && !error && games.length === 0 && (
+        <div className="text-sm opacity-70 card">
+          No games scheduled for this week.
+        </div>
+      )}
 
-                {/* Game cards */}
+      {!isLoading && !error && games.length > 0 && (
+        <div className="space-y-6">
+          {sortedDates.map((dateStr) => {
+            const dateGames = gamesByDate.get(dateStr) || [];
+            return (
+              <div key={dateStr}>
+                <h2 className="text-sm font-semibold text-slate-400 mb-3 uppercase tracking-wide">
+                  {formatDateHeader(dateStr)}
+                </h2>
                 <div className="grid gap-3 md:grid-cols-2">
-                  {dateGames.map((game) => (
+                  {dateGames.map((game: any) => (
                     <GameCard key={game.id} game={game} sport={sport} />
                   ))}
                 </div>
               </div>
-            ))
-          )}
+            );
+          })}
         </div>
       )}
     </section>
