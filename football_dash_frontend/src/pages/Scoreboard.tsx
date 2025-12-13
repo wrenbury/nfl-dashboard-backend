@@ -225,24 +225,6 @@ export default function Scoreboard({ sport }: Props) {
   const currentCFBYear = getCurrentCFBYear();
   const yearOptions = Array.from({ length: 6 }, (_, i) => currentCFBYear - i);
 
-  // Group games by date
-  const gamesByDate = useMemo(() => {
-    const grouped: Record<string, Game[]> = {};
-    for (const game of games) {
-      const date = game.startTime
-        ? new Date(game.startTime).toLocaleDateString("en-US", {
-            weekday: "long",
-            month: "long",
-            day: "numeric",
-            year: "numeric",
-          })
-        : "TBD";
-      if (!grouped[date]) grouped[date] = [];
-      grouped[date].push(game);
-    }
-    return grouped;
-  }, [games]);
-
   const handleWeekChange = (delta: number) => {
     setSelectedWeek((prev) => Math.max(1, Math.min(18, prev + delta)));
   };
@@ -340,12 +322,12 @@ export default function Scoreboard({ sport }: Props) {
       {/* Games List */}
       {!isLoading && !error && (
         <div className="space-y-6">
-          {Object.entries(gamesByDate).length === 0 ? (
+          {gamesByDate.size === 0 ? (
             <div className="text-center text-slate-400 py-8">
               No games scheduled for Week {selectedWeek}
             </div>
           ) : (
-            Object.entries(gamesByDate).map(([date, dateGames]) => (
+            Array.from(gamesByDate.entries()).map(([date, dateGames]) => (
               <div key={date} className="space-y-3">
                 {/* Date header */}
                 <div className="text-sm font-medium text-slate-400 border-b border-slate-800 pb-2">
