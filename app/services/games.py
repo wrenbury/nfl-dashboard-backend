@@ -308,43 +308,83 @@ def _cfb_game_details(event_id: str) -> GameDetails:
     except:
         pass
 
+    # Debug tracking
+    debug_info = {
+        "game_id": game_id,
+        "game_found": raw_game is not None,
+        "errors": [],
+        "api_calls": {}
+    }
+
     # Get advanced analytics from CFBD
     advanced_stats = None
     try:
         print(f"[CFB Analytics] Fetching advanced stats for game_id: {game_id}")
         advanced_stats = cfbd.advanced_game_stats(game_id)
+        debug_info["api_calls"]["advanced_stats"] = {
+            "success": advanced_stats is not None,
+            "has_data": bool(advanced_stats),
+            "type": str(type(advanced_stats).__name__) if advanced_stats else None
+        }
         print(f"[CFB Analytics] Advanced stats: {advanced_stats is not None}, type: {type(advanced_stats)}")
         if advanced_stats:
             print(f"[CFB Analytics] Advanced stats data: {str(advanced_stats)[:200]}")
     except Exception as e:
-        print(f"[CFB Analytics] Error fetching advanced stats: {e}")
+        error_msg = f"Error fetching advanced stats: {str(e)}"
+        print(f"[CFB Analytics] {error_msg}")
+        debug_info["errors"].append(error_msg)
+        debug_info["api_calls"]["advanced_stats"] = {"error": str(e)}
 
     # Get player stats from CFBD
     player_stats = None
     try:
         print(f"[CFB Analytics] Fetching player stats for game_id: {game_id}")
         player_stats = cfbd.player_game_stats(game_id)
+        debug_info["api_calls"]["player_stats"] = {
+            "success": player_stats is not None,
+            "has_data": bool(player_stats),
+            "count": len(player_stats) if isinstance(player_stats, list) else 0
+        }
         print(f"[CFB Analytics] Player stats: {player_stats is not None}")
     except Exception as e:
-        print(f"[CFB Analytics] Error fetching player stats: {e}")
+        error_msg = f"Error fetching player stats: {str(e)}"
+        print(f"[CFB Analytics] {error_msg}")
+        debug_info["errors"].append(error_msg)
+        debug_info["api_calls"]["player_stats"] = {"error": str(e)}
 
     # Get team stats from CFBD
     team_stats_raw = None
     try:
         print(f"[CFB Analytics] Fetching team stats for game_id: {game_id}")
         team_stats_raw = cfbd.team_game_stats(game_id)
+        debug_info["api_calls"]["team_stats"] = {
+            "success": team_stats_raw is not None,
+            "has_data": bool(team_stats_raw),
+            "count": len(team_stats_raw) if isinstance(team_stats_raw, list) else 0
+        }
         print(f"[CFB Analytics] Team stats: {team_stats_raw is not None}")
     except Exception as e:
-        print(f"[CFB Analytics] Error fetching team stats: {e}")
+        error_msg = f"Error fetching team stats: {str(e)}"
+        print(f"[CFB Analytics] {error_msg}")
+        debug_info["errors"].append(error_msg)
+        debug_info["api_calls"]["team_stats"] = {"error": str(e)}
 
     # Get drives data from CFBD
     drives = None
     try:
         print(f"[CFB Analytics] Fetching drives for game_id: {game_id}")
         drives = cfbd.game_drives(game_id)
+        debug_info["api_calls"]["drives"] = {
+            "success": drives is not None,
+            "has_data": bool(drives),
+            "count": len(drives) if isinstance(drives, list) else 0
+        }
         print(f"[CFB Analytics] Drives: {drives is not None}, count: {len(drives) if drives and isinstance(drives, list) else 0}")
     except Exception as e:
-        print(f"[CFB Analytics] Error fetching drives: {e}")
+        error_msg = f"Error fetching drives: {str(e)}"
+        print(f"[CFB Analytics] {error_msg}")
+        debug_info["errors"].append(error_msg)
+        debug_info["api_calls"]["drives"] = {"error": str(e)}
 
     # Build box score categories from available data
     boxscore = []
@@ -362,6 +402,13 @@ def _cfb_game_details(event_id: str) -> GameDetails:
     has_analytics = advanced_stats is not None or drives is not None
     print(f"[CFB Analytics] Returning cfbAnalytics: {has_analytics}, advanced: {advanced_stats is not None}, drives: {drives is not None}")
 
+    # Add debug summary
+    debug_info["summary"] = {
+        "boxscore_count": len(boxscore),
+        "teamStats_count": len(team_stats_categories),
+        "has_cfbAnalytics": has_analytics,
+    }
+
     return GameDetails(
         summary=summary,
         boxscore=boxscore,
@@ -373,6 +420,7 @@ def _cfb_game_details(event_id: str) -> GameDetails:
             "advanced": advanced_stats,
             "drives": drives,
         } if advanced_stats or drives else None,
+        debug=debug_info,
     )
 
 
