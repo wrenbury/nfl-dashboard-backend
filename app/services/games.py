@@ -485,6 +485,22 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     # NFL uses ESPN
     raw: Dict[str, Any] = espn.summary(sport, event_id)
 
+    # For live games, also fetch from scoreboard to get real-time situation data
+    # The summary endpoint doesn't include live situation updates
+    scoreboard_situation = None
+    try:
+        scoreboard_data = espn.scoreboard(sport)
+        events = scoreboard_data.get("events") or []
+        for event in events:
+            if str(event.get("id")) == str(event_id):
+                competitions = event.get("competitions") or [{}]
+                if competitions:
+                    scoreboard_situation = competitions[0].get("situation")
+                    print(f"[NFL Game Details] Found situation in scoreboard: {scoreboard_situation}")
+                break
+    except Exception as e:
+        print(f"[NFL Game Details] Error fetching scoreboard for situation: {e}")
+
     header = raw.get("header") or {}
     competitions = header.get("competitions") or [{}]
     comp0: Dict[str, Any] = competitions[0] or {}
@@ -567,8 +583,9 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
             )
 
     # --- Situation: clock + period + down & distance + possession ---------------
-    raw_situation = comp0.get("situation") or {}
-    print(f"[NFL Game Details] Raw situation data: {raw_situation}")
+    # Prefer scoreboard situation (live data) over summary situation
+    raw_situation = scoreboard_situation if scoreboard_situation else (comp0.get("situation") or {})
+    print(f"[NFL Game Details] Raw situation data from {'scoreboard' if scoreboard_situation else 'summary'}: {raw_situation}")
     situation: GameSituation | None = None
 
     # Debug info for NFL games
@@ -576,6 +593,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         "sport": "nfl",
         "raw_situation": raw_situation,
         "has_situation_data": bool(raw_situation),
+        "situation_source": "scoreboard" if scoreboard_situation else "summary",
     }
 
     if raw_situation:
