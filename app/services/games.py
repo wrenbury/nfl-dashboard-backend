@@ -570,9 +570,20 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     raw_situation = comp0.get("situation") or {}
     print(f"[NFL Game Details] Raw situation data: {raw_situation}")
     situation: GameSituation | None = None
+
+    # Debug info for NFL games
+    debug_info = {
+        "sport": "nfl",
+        "raw_situation": raw_situation,
+        "has_situation_data": bool(raw_situation),
+    }
+
     if raw_situation:
         yard_line = raw_situation.get("yardLine")
         print(f"[NFL Game Details] Extracted yardLine: {yard_line} (type: {type(yard_line)})")
+        debug_info["yardLine_extracted"] = yard_line
+        debug_info["yardLine_type"] = str(type(yard_line).__name__)
+
         situation = GameSituation(
             clock=raw_situation.get("clock"),
             period=_extract_period(comp0, header),
@@ -586,8 +597,10 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
             isRedZone=raw_situation.get("isRedZone"),
         )
         print(f"[NFL Game Details] Created situation with yardLine: {situation.yardLine}")
+        debug_info["situation_created"] = True
     else:
         print(f"[NFL Game Details] No situation data available (game may not be live)")
+        debug_info["situation_created"] = False
 
     # --- Plays + win probability (unchanged) ------------------------------------
     plays = ((raw.get("drives") or {}).get("current") or {}).get("plays")
@@ -600,4 +613,5 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         plays=plays,
         winProbability=win_probability,
         situation=situation,
+        debug=debug_info,
     )
