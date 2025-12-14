@@ -26,15 +26,28 @@ export default function FieldDisplay({
   console.log("FieldDisplay - situation data:", situation);
   console.log("FieldDisplay - yardLine value:", situation?.yardLine);
 
-  // Use situation data if available, otherwise use defaults
-  // Handle yardLine carefully - 0 is a valid value (goal line)
-  const yardLine = situation?.yardLine !== undefined && situation?.yardLine !== null
+  // ESPN's yardLine is relative to the team whose territory it's in
+  // If ball is at "SF 40" (home team territory), yardLine=40 means 40 yards from SF's goal
+  // We need to convert to absolute position (0-100 from away team's goal)
+  // Check possessionText to determine which team's territory
+  const rawYardLine = situation?.yardLine !== undefined && situation?.yardLine !== null
     ? situation.yardLine
     : 50;
+
+  // Determine if ball is in home team territory
+  // possessionText format: "SF 40" or "GB 32"
+  const possessionText = situation?.possessionText || "";
+  const isInHomeTerritory = possessionText.includes(homeTeamAbbr);
+
+  // Convert to absolute yardLine (0-100 from away goal line)
+  // If in home territory, we need to invert: 100 - yardLine
+  const yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+
   const possessionTeamId = situation?.possessionTeamId || null;
   const isRedZone = situation?.isRedZone || false;
 
-  console.log("FieldDisplay - calculated yardLine:", yardLine, "possessionTeamId:", possessionTeamId);
+  console.log("FieldDisplay - possessionText:", possessionText, "isInHomeTerritory:", isInHomeTerritory);
+  console.log("FieldDisplay - rawYardLine:", rawYardLine, "adjusted yardLine:", yardLine, "possessionTeamId:", possessionTeamId);
 
   // ESPN's coordinate system:
   // x=0 to x=50: Away end zone
