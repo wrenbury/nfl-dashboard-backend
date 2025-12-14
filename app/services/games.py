@@ -128,36 +128,58 @@ def _build_cfb_team_stats(team_stats: list) -> list:
         print("[_build_cfb_team_stats] No team stats provided")
         return []
 
-    if len(team_stats) < 2:
-        print(f"[_build_cfb_team_stats] Only {len(team_stats)} team(s) found, need 2. Data: {team_stats}")
+    # CFBD returns [{ id: game_id, teams: [...] }]
+    # Extract the teams array from the first element
+    if len(team_stats) > 0 and isinstance(team_stats[0], dict) and "teams" in team_stats[0]:
+        teams = team_stats[0]["teams"]
+        print(f"[_build_cfb_team_stats] Extracted {len(teams)} teams from game object")
+    else:
+        print(f"[_build_cfb_team_stats] Unexpected structure, expected game object with teams")
+        return []
+
+    if len(teams) < 2:
+        print(f"[_build_cfb_team_stats] Only {len(teams)} team(s) found, need 2")
         return []
 
     categories = []
 
-    # Assuming team_stats is a list with two teams
-    home_stats = team_stats[0] if len(team_stats) > 0 else {}
-    away_stats = team_stats[1] if len(team_stats) > 1 else {}
+    # Convert stats array to dict for easier access
+    def stats_array_to_dict(stats_array):
+        """Convert [{ category: 'totalYards', stat: '334' }, ...] to { 'totalYards': '334', ... }"""
+        if not isinstance(stats_array, list):
+            return {}
+        return {item.get("category", ""): item.get("stat", "") for item in stats_array}
 
-    print(f"[_build_cfb_team_stats] Processing {len(team_stats)} teams")
-    print(f"[_build_cfb_team_stats] Team 0 keys: {home_stats.keys() if isinstance(home_stats, dict) else 'not a dict'}")
-    print(f"[_build_cfb_team_stats] Team 1 keys: {away_stats.keys() if isinstance(away_stats, dict) else 'not a dict'}")
+    # Determine which team is home/away
+    team1 = teams[0]
+    team2 = teams[1]
+
+    home_team = team1 if team1.get("homeAway") == "home" else team2
+    away_team = team2 if team2.get("homeAway") == "away" else team1
+
+    # Convert stats arrays to dicts
+    home_stats_dict = stats_array_to_dict(home_team.get("stats", []))
+    away_stats_dict = stats_array_to_dict(away_team.get("stats", []))
+
+    print(f"[_build_cfb_team_stats] Home: {home_team.get('team')}, Away: {away_team.get('team')}")
 
     # Build basic stats category
     stats_rows = []
 
-    # Map common stat fields
+    # Map common stat fields (using CFBD category names)
     stat_mappings = [
+        ("First Downs", "firstDowns"),
         ("Total Yards", "totalYards"),
-        ("Passing Yards", "passingYards"),
+        ("Passing Yards", "netPassingYards"),
         ("Rushing Yards", "rushingYards"),
         ("Turnovers", "turnovers"),
-        ("Penalties", "penalties"),
+        ("Penalties-Yards", "totalPenaltiesYards"),
         ("Time of Possession", "possessionTime"),
     ]
 
     for label, field in stat_mappings:
-        home_val = home_stats.get("stats", {}).get(field, "-")
-        away_val = away_stats.get("stats", {}).get(field, "-")
+        home_val = home_stats_dict.get(field, "-")
+        away_val = away_stats_dict.get(field, "-")
         if home_val != "-" or away_val != "-":
             stats_rows.append([label, str(away_val), str(home_val)])
 
@@ -546,20 +568,26 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
 
     # --- Situation: clock + period + down & distance + possession ---------------
     raw_situation = comp0.get("situation") or {}
+    print(f"[NFL Game Details] Raw situation data: {raw_situation}")
     situation: GameSituation | None = None
     if raw_situation:
+        yard_line = raw_situation.get("yardLine")
+        print(f"[NFL Game Details] Extracted yardLine: {yard_line} (type: {type(yard_line)})")
         situation = GameSituation(
             clock=raw_situation.get("clock"),
             period=_extract_period(comp0, header),
             down=raw_situation.get("down"),
             distance=raw_situation.get("distance"),
-            yardLine=raw_situation.get("yardLine"),
+            yardLine=yard_line,
             shortDownDistanceText=raw_situation.get("shortDownDistanceText"),
             downDistanceText=raw_situation.get("downDistanceText"),
             possessionTeamId=_extract_possession_team_id(raw_situation),
             possessionText=raw_situation.get("possessionText"),
             isRedZone=raw_situation.get("isRedZone"),
         )
+        print(f"[NFL Game Details] Created situation with yardLine: {situation.yardLine}")
+    else:
+        print(f"[NFL Game Details] No situation data available (game may not be live)")
 
     # --- Plays + win probability (unchanged) ------------------------------------
     plays = ((raw.get("drives") or {}).get("current") or {}).get("plays")

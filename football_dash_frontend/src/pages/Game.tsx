@@ -54,6 +54,8 @@ export default function Game() {
       hasTeamStats: !!data.teamStats,
       teamStatsLength: data.teamStats?.length || 0,
       hasCfbAnalytics: !!data.cfbAnalytics,
+      hasSituation: !!data.situation,
+      situation: data.situation,
       summary: data.summary,
     });
 
