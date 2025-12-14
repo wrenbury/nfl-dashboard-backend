@@ -24,30 +24,38 @@ export default function DriveInfo({ situation, plays }: Props) {
     return "";
   };
 
+  // Helper to parse clock time "MM:SS" to total seconds
+  const parseClockToSeconds = (clockStr: string): number => {
+    if (!clockStr || typeof clockStr !== 'string') return 0;
+    const parts = clockStr.split(':');
+    if (parts.length !== 2) return 0;
+    const minutes = parseInt(parts[0], 10) || 0;
+    const seconds = parseInt(parts[1], 10) || 0;
+    return (minutes * 60) + seconds;
+  };
+
+  // Calculate drive elapsed time
+  const calculateDriveTime = (): string => {
+    if (!plays || plays.length === 0) return "—";
+
+    const firstPlayClock = plays[0]?.clock?.displayValue || plays[0]?.clock;
+    const lastPlayClock = lastPlay?.clock?.displayValue || lastPlay?.clock;
+
+    if (!firstPlayClock || !lastPlayClock) return "—";
+
+    const startSeconds = parseClockToSeconds(firstPlayClock);
+    const endSeconds = parseClockToSeconds(lastPlayClock);
+    const elapsedSeconds = startSeconds - endSeconds;
+
+    if (elapsedSeconds <= 0) return "—";
+
+    const mins = Math.floor(elapsedSeconds / 60);
+    const secs = elapsedSeconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   return (
     <div className="space-y-4">
-      {/* Game clock */}
-      <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-slate-400 text-xs uppercase tracking-wide mb-1">
-              Time
-            </div>
-            <div className="text-2xl font-bold text-white">
-              {clock || "--:--"}
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="text-slate-400 text-xs uppercase tracking-wide mb-1">
-              Quarter
-            </div>
-            <div className="text-2xl font-bold text-white">
-              {period ? (period > 4 ? "OT" : period) : "-"}
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Current possession */}
       {(possessionText || downDistanceText) && (
         <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700">
@@ -126,8 +134,7 @@ export default function DriveInfo({ situation, plays }: Props) {
             <div>
               <div className="text-slate-400 text-xs mb-1">Time</div>
               <div className="text-white font-bold text-lg">
-                {/* Calculate drive time if available */}
-                {plays[0]?.clock && lastPlay?.clock ? "—" : "—"}
+                {calculateDriveTime()}
               </div>
             </div>
           </div>
