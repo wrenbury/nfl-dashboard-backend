@@ -44,11 +44,28 @@ export default function FieldDisplay({
   // If in home territory, we need to invert: 100 - yardLine
   const yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
 
-  const possessionTeamId = situation?.possessionTeamId || null;
+  // Infer possession team from downDistanceText when ESPN doesn't provide possessionTeamId
+  // downDistanceText format: "3rd & 12 at DET 26" - the team abbreviation after "at" has possession
+  let inferredPossessionTeamId = situation?.possessionTeamId || null;
+  if (!inferredPossessionTeamId && possessionText) {
+    // Extract team abbreviation from "at TEAM XX" pattern
+    const atMatch = possessionText.match(/at\s+([A-Z]{2,3})\s+\d+/);
+    if (atMatch && atMatch[1]) {
+      const teamAbbr = atMatch[1];
+      // Match abbreviation to home or away team
+      if (teamAbbr === homeTeamAbbr) {
+        inferredPossessionTeamId = homeTeamId;
+      } else if (teamAbbr === awayTeamAbbr) {
+        inferredPossessionTeamId = awayTeamId;
+      }
+    }
+  }
+
   const isRedZone = situation?.isRedZone || false;
 
   console.log("FieldDisplay - possessionText:", possessionText, "isInHomeTerritory:", isInHomeTerritory);
-  console.log("FieldDisplay - rawYardLine:", rawYardLine, "adjusted yardLine:", yardLine, "possessionTeamId:", possessionTeamId);
+  console.log("FieldDisplay - rawYardLine:", rawYardLine, "adjusted yardLine:", yardLine);
+  console.log("FieldDisplay - possessionTeamId:", situation?.possessionTeamId, "inferred:", inferredPossessionTeamId);
 
   // ESPN's coordinate system:
   // x=0 to x=50: Away end zone
@@ -214,7 +231,7 @@ export default function FieldDisplay({
             </g>
 
             {/* Team logo bubble */}
-            {possessionTeamId && (
+            {inferredPossessionTeamId && (
               <g className="TeamLogoBubble fadeIn" transform={`translate(${ballX}, ${ballY - 28})`}>
                 <path
                   fill="rgba(0, 0, 0, 0.8)"
@@ -224,7 +241,7 @@ export default function FieldDisplay({
                 </path>
                 <image
                   className="TeamLogoBubble__image"
-                  xlinkHref={getTeamLogoUrl(possessionTeamId)}
+                  xlinkHref={getTeamLogoUrl(inferredPossessionTeamId)}
                   preserveAspectRatio="none"
                   x="-11.5"
                   y="-11.5"
