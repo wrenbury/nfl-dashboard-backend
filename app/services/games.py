@@ -568,20 +568,26 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
 
     # --- Situation: clock + period + down & distance + possession ---------------
     raw_situation = comp0.get("situation") or {}
+    print(f"[NFL Game Details] Raw situation data: {raw_situation}")
     situation: GameSituation | None = None
     if raw_situation:
+        yard_line = raw_situation.get("yardLine")
+        print(f"[NFL Game Details] Extracted yardLine: {yard_line} (type: {type(yard_line)})")
         situation = GameSituation(
             clock=raw_situation.get("clock"),
             period=_extract_period(comp0, header),
             down=raw_situation.get("down"),
             distance=raw_situation.get("distance"),
-            yardLine=raw_situation.get("yardLine"),
+            yardLine=yard_line,
             shortDownDistanceText=raw_situation.get("shortDownDistanceText"),
             downDistanceText=raw_situation.get("downDistanceText"),
             possessionTeamId=_extract_possession_team_id(raw_situation),
             possessionText=raw_situation.get("possessionText"),
             isRedZone=raw_situation.get("isRedZone"),
         )
+        print(f"[NFL Game Details] Created situation with yardLine: {situation.yardLine}")
+    else:
+        print(f"[NFL Game Details] No situation data available (game may not be live)")
 
     # --- Plays + win probability (unchanged) ------------------------------------
     plays = ((raw.get("drives") or {}).get("current") or {}).get("plays")
