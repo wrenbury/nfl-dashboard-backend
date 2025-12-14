@@ -29,15 +29,16 @@ export default function FieldDisplay({
   // ESPN's yardLine is relative to the team whose territory it's in
   // If ball is at "SF 40" (home team territory), yardLine=40 means 40 yards from SF's goal
   // We need to convert to absolute position (0-100 from away team's goal)
-  // Check possessionText to determine which team's territory
   const rawYardLine = situation?.yardLine !== undefined && situation?.yardLine !== null
     ? situation.yardLine
     : 50;
 
-  // Determine if ball is in home team territory
-  // possessionText format: "SF 40" or "GB 32"
-  const possessionText = situation?.possessionText || "";
-  const isInHomeTerritory = possessionText.includes(homeTeamAbbr);
+  // Determine if ball is in home team territory by checking possessionText or downDistanceText
+  // Formats: "SF 40" or "1st & 10 at SF 40"
+  const possessionText = situation?.possessionText || situation?.downDistanceText || "";
+  const isInHomeTerritory = possessionText.includes(` ${homeTeamAbbr} `) ||
+                           possessionText.includes(` at ${homeTeamAbbr} `) ||
+                           possessionText.startsWith(`${homeTeamAbbr} `);
 
   // Convert to absolute yardLine (0-100 from away goal line)
   // If in home territory, we need to invert: 100 - yardLine
