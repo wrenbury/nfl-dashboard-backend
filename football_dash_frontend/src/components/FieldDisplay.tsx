@@ -34,24 +34,26 @@ export default function FieldDisplay({
     : 50;
 
   // Determine if ball is in home team territory by checking possessionText or downDistanceText
-  // Formats: "SF 40" or "1st & 10 at SF 40"
-  const possessionText = situation?.possessionText || situation?.downDistanceText || "";
-  const isInHomeTerritory = possessionText.includes(` ${homeTeamAbbr} `) ||
-                           possessionText.includes(` at ${homeTeamAbbr} `) ||
-                           possessionText.startsWith(`${homeTeamAbbr} `);
+  // possessionText format: "SF 40" (SF has ball at SF 40 yard line)
+  // downDistanceText format: "1st & 10 at SF 40" (ball is at SF 40 yard line)
+  const textToCheck = situation?.possessionText || situation?.downDistanceText || "";
+  const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
+                           textToCheck.includes(` at ${homeTeamAbbr} `) ||
+                           textToCheck.startsWith(`${homeTeamAbbr} `);
 
   // Convert to absolute yardLine (0-100 from away goal line)
   // If in home territory, we need to invert: 100 - yardLine
   const yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
 
-  // Infer possession team from downDistanceText when ESPN doesn't provide possessionTeamId
-  // downDistanceText format: "3rd & 12 at DET 26" - the team abbreviation after "at" has possession
+  // Infer possession team from possessionText when ESPN doesn't provide possessionTeamId
+  // possessionText format: "SF 40" or "SF ball on LAC 44" - first team abbreviation has possession
+  // NOTE: downDistanceText "3rd & 10 at DET 26" indicates territory, not possession!
   let inferredPossessionTeamId = situation?.possessionTeamId || null;
-  if (!inferredPossessionTeamId && possessionText) {
-    // Extract team abbreviation from "at TEAM XX" pattern
-    const atMatch = possessionText.match(/at\s+([A-Z]{2,3})\s+\d+/);
-    if (atMatch && atMatch[1]) {
-      const teamAbbr = atMatch[1];
+  if (!inferredPossessionTeamId && situation?.possessionText) {
+    // Extract first team abbreviation from possessionText (the team with the ball)
+    const teamMatch = situation.possessionText.match(/^([A-Z]{2,3})\s/);
+    if (teamMatch && teamMatch[1]) {
+      const teamAbbr = teamMatch[1];
       // Match abbreviation to home or away team
       if (teamAbbr === homeTeamAbbr) {
         inferredPossessionTeamId = homeTeamId;
@@ -63,9 +65,11 @@ export default function FieldDisplay({
 
   const isRedZone = situation?.isRedZone || false;
 
-  console.log("FieldDisplay - possessionText:", possessionText, "isInHomeTerritory:", isInHomeTerritory);
+  console.log("FieldDisplay - possessionText:", situation?.possessionText, "downDistanceText:", situation?.downDistanceText);
+  console.log("FieldDisplay - textToCheck:", textToCheck, "isInHomeTerritory:", isInHomeTerritory);
   console.log("FieldDisplay - rawYardLine:", rawYardLine, "adjusted yardLine:", yardLine);
   console.log("FieldDisplay - possessionTeamId:", situation?.possessionTeamId, "inferred:", inferredPossessionTeamId);
+  console.log("FieldDisplay - ballX:", 50 + (yardLine * 5), "ballY:", 56.35);
 
   // ESPN's coordinate system:
   // x=0 to x=50: Away end zone
