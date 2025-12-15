@@ -65,11 +65,13 @@ export default function FieldDisplay({
 
   const isRedZone = situation?.isRedZone || false;
 
+  console.log("FieldDisplay - Team IDs - Home:", homeTeamId, homeTeamAbbr, "Away:", awayTeamId, awayTeamAbbr);
   console.log("FieldDisplay - possessionText:", situation?.possessionText, "downDistanceText:", situation?.downDistanceText);
   console.log("FieldDisplay - textToCheck:", textToCheck, "isInHomeTerritory:", isInHomeTerritory);
   console.log("FieldDisplay - rawYardLine:", rawYardLine, "adjusted yardLine:", yardLine);
   console.log("FieldDisplay - possessionTeamId:", situation?.possessionTeamId, "inferred:", inferredPossessionTeamId);
   console.log("FieldDisplay - ballX:", 50 + (yardLine * 5), "ballY:", 56.35);
+  console.log("FieldDisplay - Logo will render for team ID:", inferredPossessionTeamId, "URL:", inferredPossessionTeamId ? getTeamLogoUrl(inferredPossessionTeamId) : "none");
 
   // ESPN's coordinate system:
   // x=0 to x=50: Away end zone
