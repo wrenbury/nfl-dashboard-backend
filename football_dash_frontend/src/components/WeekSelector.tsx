@@ -6,7 +6,7 @@ import type { Week } from "../api";
 type Props = {
   weeks: Week[];
   selectedWeek: number;
-  onWeekChange: (week: number) => void;
+  onWeekChange: (weekNum: number, seasonType?: number) => void;
   seasonType?: number; // Optional for CFB to distinguish regular vs postseason
 };
 
@@ -65,14 +65,16 @@ export default function WeekSelector({
   const handlePrev = () => {
     const currentIndex = weeks.findIndex(matchesWeek);
     if (currentIndex > 0) {
-      onWeekChange(weeks[currentIndex - 1].number);
+      const prevWeek = weeks[currentIndex - 1];
+      onWeekChange(prevWeek.number, prevWeek.seasonType);
     }
   };
 
   const handleNext = () => {
     const currentIndex = weeks.findIndex(matchesWeek);
     if (currentIndex < weeks.length - 1) {
-      onWeekChange(weeks[currentIndex + 1].number);
+      const nextWeek = weeks[currentIndex + 1];
+      onWeekChange(nextWeek.number, nextWeek.seasonType);
     }
   };
 
@@ -123,7 +125,7 @@ export default function WeekSelector({
               <button
                 key={`${week.seasonType}-${week.number}`}
                 ref={isSelected ? selectedRef : null}
-                onClick={() => onWeekChange(week.number)}
+                onClick={() => onWeekChange(week.number, week.seasonType)}
                 className={`flex flex-col items-center px-4 py-2 rounded-lg whitespace-nowrap transition ${
                   isSelected
                     ? "bg-slate-700 text-white"
