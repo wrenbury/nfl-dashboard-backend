@@ -305,7 +305,7 @@ export default function WinProb({
       </div>
 
       <div className="h-52 relative">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minHeight={208}>
           <AreaChart data={data} margin={{ top: 5, right: 5, bottom: 5, left: 0 }}>
             <defs>
               {/* ESPN-style split gradients */}
