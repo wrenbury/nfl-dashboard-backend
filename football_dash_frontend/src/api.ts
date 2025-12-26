@@ -37,13 +37,14 @@ export type Conference = {
 export const API = {
   scoreboard(
     sport: "nfl" | "college-football",
-    opts: { date?: string; week?: number; conference?: string; seasonType?: number } = {}
+    opts: { date?: string; week?: number; conference?: string; seasonType?: number; groups?: number } = {}
   ): string {
     const params = new URLSearchParams();
     if (opts.date) params.set("date", opts.date);
     if (typeof opts.week === "number") params.set("week", String(opts.week));
     if (opts.conference) params.set("conference", opts.conference);
     if (typeof opts.seasonType === "number") params.set("season_type", String(opts.seasonType));
+    if (typeof opts.groups === "number") params.set("groups", String(opts.groups));
     const qs = params.toString();
     const path = `/api/scoreboard/${sport}${qs ? `?${qs}` : ""}`;
     return buildUrl(path);
@@ -62,8 +63,8 @@ export const API = {
     return buildUrl("/api/nfl/current-week");
   },
 
-  cfbWeeks(year: number = 2025): string {
-    return buildUrl(`/api/cfb/weeks?year=${year}`);
+  cfbWeeks(): string {
+    return buildUrl("/api/cfb/weeks");
   },
 
   cfbConferences(): string {

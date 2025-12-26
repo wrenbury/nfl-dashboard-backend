@@ -168,11 +168,12 @@ export default function Scoreboard({ sport }: Props) {
 
   const [selectedWeek, setSelectedWeek] = useState(sport === "nfl" ? getCurrentNflWeek() : 1);
   const [selectedSeasonType, setSelectedSeasonType] = useState<number>(2); // 2=regular, 3=postseason
+  const [selectedConference, setSelectedConference] = useState<number>(80); // 80 = All FBS games
 
   // Fetch weeks from backend for both NFL and CFB
   const weeksEndpoint = sport === "nfl"
     ? API.nflWeeks()
-    : API.cfbWeeks(cfbYear);
+    : API.cfbWeeks();
 
   const { data: weeksData } = useSWR(weeksEndpoint, fetcher, {
     revalidateOnFocus: false,
@@ -181,10 +182,13 @@ export default function Scoreboard({ sport }: Props) {
   const weeks: Week[] = Array.isArray(weeksData) ? weeksData : (sport === "nfl" ? getNflWeeks(currentYear) : []);
   const currentWeekData = weeks.find((w) => w.number === selectedWeek && w.seasonType === selectedSeasonType);
 
-  // Use week parameter and seasonType for CFB
+  // Build endpoint with appropriate parameters
   const endpoint = API.scoreboard(sport, {
     week: selectedWeek,
-    ...(sport === "college-football" && { seasonType: selectedSeasonType })
+    ...(sport === "college-football" && {
+      seasonType: selectedSeasonType,
+      groups: selectedConference
+    })
   });
 
   const { data, error, isLoading } = useSWR(endpoint, fetcher, {
@@ -274,6 +278,33 @@ export default function Scoreboard({ sport }: Props) {
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">CFB Scoreboard</h1>
+
+      {/* Conference selector */}
+      <div className="flex items-center gap-3">
+        <label htmlFor="conference-select" className="text-sm font-medium text-slate-400">
+          Conference:
+        </label>
+        <select
+          id="conference-select"
+          value={selectedConference}
+          onChange={(e) => setSelectedConference(Number(e.target.value))}
+          className="px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-sm focus:outline-none focus:border-slate-600"
+        >
+          <option value={80}>All FBS</option>
+          <option value={25}>Top 25</option>
+          <option value={1}>ACC</option>
+          <option value={151}>American (AAC)</option>
+          <option value={4}>Big 12</option>
+          <option value={5}>Big Ten</option>
+          <option value={12}>Conference USA</option>
+          <option value={18}>FBS Independents</option>
+          <option value={15}>MAC</option>
+          <option value={17}>Mountain West</option>
+          <option value={9}>Pac-12</option>
+          <option value={8}>SEC</option>
+          <option value={37}>Sun Belt</option>
+        </select>
+      </div>
 
       {/* Week selector */}
       {weeks.length > 0 && selectedWeek !== null && (

@@ -188,7 +188,7 @@ def parse_scoreboard(sport: Sport, data) -> List[GameSummary]:
 
         # Convert game start time from UTC to ET for correct date grouping in frontend
         start_time = e.get("date")
-        if start_time and sport == "nfl":
+        if start_time:
             start_time = _convert_utc_timestamp_to_et(start_time)
 
         out.append(
@@ -430,61 +430,73 @@ def _build_cfb_scoreboard_from_cfbd(
     return out
 
 
-def get_cfb_weeks(year: int) -> List[Week]:
+def get_cfb_weeks() -> List[Week]:
     """
-    Get CFB season weeks from CFBD calendar API.
-    Returns a list of Week objects for both regular season and postseason.
+    Get CFB season weeks from ESPN calendar data.
+    Returns a list of Week objects with week number, label, and date range.
+    Includes both regular season and postseason weeks (Bowl Games, CFP).
     """
-    raw = cfbd.calendar(year)
+    raw = espn.calendar("college-football")
     weeks: List[Week] = []
 
-    if not isinstance(raw, list):
+    # ESPN calendar data structure:
+    # leagues[0].calendar[0] = regular season, [1] = postseason
+    leagues = raw.get("leagues", [])
+    if not leagues:
         return weeks
 
-    for entry in raw:
-        if not isinstance(entry, dict):
-            continue
+    calendar = leagues[0].get("calendar", [])
 
-        week_num = entry.get("week")
-        season_type_str = entry.get("seasonType", "regular")
-        start_date = entry.get("firstGameStart") or entry.get("startDate", "")
-        end_date = entry.get("lastGameStart") or entry.get("endDate", "")
+    # Mapping for postseason labels
+    POSTSEASON_LABELS = {
+        "Bowl Games": "BOWL GAMES",
+        "Bowls": "BOWL GAMES",
+        "Bowl": "BOWL GAMES",
+        "College Football Playoff": "CFP",
+        "CFP": "CFP",
+        "Playoff": "CFP",
+    }
 
-        # Map season type string to integer
-        # CFBD uses: "regular", "postseason"
-        season_type_int = 2  # Default to regular season
-        if season_type_str == "postseason":
-            season_type_int = 3
-        elif season_type_str == "regular":
-            season_type_int = 2
+    # Process all calendar sections (regular season and postseason)
+    for section_idx, cal_section in enumerate(calendar):
+        # Determine season type based on calendar section index
+        # ESPN structure: [0]=regular, [1]=postseason (CFB doesn't have preseason)
+        season_type = section_idx + 2  # 2=regular, 3=postseason
 
-        if week_num is not None:
-            # Convert timestamps to date strings if needed
-            if start_date and "T" in start_date:
-                start_date = _convert_utc_to_et_date(start_date)
-            if end_date and "T" in end_date:
-                end_date = _convert_utc_to_et_date(end_date)
+        # Handle both list of entries and list of sections with entries
+        entries = cal_section if isinstance(cal_section, list) else cal_section.get("entries", [])
 
-            # Create label based on season type
-            if season_type_int == 3:
-                # Postseason - use descriptive labels
-                # Week 1 = Bowl Games, Week 2 = CFP
-                if week_num == 1:
-                    label = "Bowl Games"
-                elif week_num == 2:
-                    label = "CFP"
-                else:
-                    label = f"Postseason Week {week_num}"
-            else:
-                label = f"Week {week_num}"
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
 
-            weeks.append(Week(
-                number=int(week_num),
-                label=label,
-                startDate=start_date,
-                endDate=end_date,
-                seasonType=season_type_int,
-            ))
+            week_num = entry.get("value")
+            label = entry.get("label", f"Week {week_num}")
+            start_date = entry.get("startDate", "")
+            end_date = entry.get("endDate", "")
+
+            if week_num is not None:
+                # Convert UTC dates to ET dates
+                if start_date:
+                    start_date = _convert_utc_to_et_date(start_date)
+                if end_date:
+                    end_date = _convert_utc_to_et_date(end_date)
+
+                # Normalize postseason labels
+                normalized_label = label
+                if season_type == 3:  # Postseason
+                    for postseason_key, postseason_value in POSTSEASON_LABELS.items():
+                        if postseason_key.lower() in label.lower():
+                            normalized_label = postseason_value
+                            break
+
+                weeks.append(Week(
+                    number=int(week_num),
+                    label=normalized_label,
+                    startDate=start_date,
+                    endDate=end_date,
+                    seasonType=season_type,
+                ))
 
     return weeks
 
@@ -537,8 +549,8 @@ def get_cfb_conferences() -> List[dict]:
     return conferences
 
 
-def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference: str | None = None, season_type: int | None = None):
-    """Route NFL to ESPN, CFB to CFBD."""
+def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference: str | None = None, season_type: int | None = None, groups: int | None = None):
+    """Route both NFL and CFB to ESPN."""
     if sport == "nfl":
         # Look up season type for the requested week
         seasontype = None
@@ -553,23 +565,23 @@ def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference:
         return parse_scoreboard(sport, raw)
 
     if sport == "college-football":
-        # For CFB, determine season type from week if not provided
-        if season_type is None and week is not None:
-            # Look up season type for the requested week
-            year = datetime.now(timezone.utc).year
-            if date and len(date) >= 4 and date[:4].isdigit():
-                year = int(date[:4])
-            weeks = get_cfb_weeks(year)
+        # Look up season type for the requested week if not provided
+        seasontype = season_type
+        if seasontype is None and week is not None:
+            weeks = get_cfb_weeks()
             for w in weeks:
                 if w.number == week:
-                    season_type = w.seasonType
+                    seasontype = w.seasonType
                     break
 
-        # Default to regular season if still not set
-        if season_type is None:
-            season_type = 2
+        # Use groups parameter for CFB conference filtering
+        # Default to groups=80 (all FBS games) if no filter specified
+        cfb_groups = groups
+        if cfb_groups is None and conference is None:
+            cfb_groups = 80  # All FBS games
 
-        return _build_cfb_scoreboard_from_cfbd(date=date, week=week, conference=conference, season_type=season_type)
+        raw = espn.scoreboard(sport, date=date, week=week, seasontype=seasontype, groups=cfb_groups)
+        return parse_scoreboard(sport, raw)
 
     # Unknown sport -> empty board (defensive default)
     return []
