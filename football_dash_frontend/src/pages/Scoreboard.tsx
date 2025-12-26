@@ -164,13 +164,28 @@ function formatDateHeader(dateStr: string): string {
 
 export default function Scoreboard({ sport }: Props) {
   const currentYear = new Date().getFullYear();
-  const [selectedWeek, setSelectedWeek] = useState(getCurrentNflWeek());
+  const cfbYear = getCurrentCFBYear();
 
-  const weeks = useMemo(() => getNflWeeks(currentYear), [currentYear]);
-  const currentWeekData = weeks.find((w) => w.number === selectedWeek);
+  const [selectedWeek, setSelectedWeek] = useState(sport === "nfl" ? getCurrentNflWeek() : 1);
+  const [selectedSeasonType, setSelectedSeasonType] = useState<number>(2); // 2=regular, 3=postseason
 
-  // Use week parameter for NFL
-  const endpoint = API.scoreboard(sport, { week: selectedWeek });
+  // Fetch weeks from backend for both NFL and CFB
+  const weeksEndpoint = sport === "nfl"
+    ? API.nflWeeks()
+    : API.cfbWeeks(cfbYear);
+
+  const { data: weeksData } = useSWR(weeksEndpoint, fetcher, {
+    revalidateOnFocus: false,
+  });
+
+  const weeks: Week[] = Array.isArray(weeksData) ? weeksData : (sport === "nfl" ? getNflWeeks(currentYear) : []);
+  const currentWeekData = weeks.find((w) => w.number === selectedWeek && w.seasonType === selectedSeasonType);
+
+  // Use week parameter and seasonType for CFB
+  const endpoint = API.scoreboard(sport, {
+    week: selectedWeek,
+    ...(sport === "college-football" && { seasonType: selectedSeasonType })
+  });
 
   const { data, error, isLoading } = useSWR(endpoint, fetcher, {
     revalidateOnFocus: false,
@@ -181,6 +196,15 @@ export default function Scoreboard({ sport }: Props) {
 
   // Sort dates chronologically
   const sortedDates = Array.from(gamesByDate.keys()).sort();
+
+  // Update selectedWeek and seasonType when week changes
+  const handleWeekChange = (weekNum: number) => {
+    setSelectedWeek(weekNum);
+    const week = weeks.find(w => w.number === weekNum && w.seasonType === selectedSeasonType);
+    if (week) {
+      setSelectedSeasonType(week.seasonType);
+    }
+  };
 
   // NFL-specific view with week selector
   if (sport === "nfl") {
@@ -193,7 +217,7 @@ export default function Scoreboard({ sport }: Props) {
           <WeekSelector
             weeks={weeks}
             selectedWeek={selectedWeek}
-            onWeekChange={setSelectedWeek}
+            onWeekChange={handleWeekChange}
           />
         )}
 
@@ -248,7 +272,8 @@ export default function Scoreboard({ sport }: Props) {
         <WeekSelector
           weeks={weeks}
           selectedWeek={selectedWeek}
-          onWeekChange={setSelectedWeek}
+          onWeekChange={handleWeekChange}
+          seasonType={selectedSeasonType}
         />
       )}
 

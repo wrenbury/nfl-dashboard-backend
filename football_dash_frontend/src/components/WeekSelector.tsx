@@ -7,6 +7,7 @@ type Props = {
   weeks: Week[];
   selectedWeek: number;
   onWeekChange: (week: number) => void;
+  seasonType?: number; // Optional for CFB to distinguish regular vs postseason
 };
 
 function formatDateRange(startDate: string, endDate: string): string {
@@ -30,9 +31,18 @@ export default function WeekSelector({
   weeks,
   selectedWeek,
   onWeekChange,
+  seasonType,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
+
+  // Helper to match week considering seasonType if provided
+  const matchesWeek = (week: Week) => {
+    if (seasonType !== undefined) {
+      return week.number === selectedWeek && week.seasonType === seasonType;
+    }
+    return week.number === selectedWeek;
+  };
 
   // Scroll selected week into view on mount
   useEffect(() => {
@@ -50,23 +60,23 @@ export default function WeekSelector({
 
       container.scrollTo({ left: scrollLeft, behavior: "smooth" });
     }
-  }, [selectedWeek]);
+  }, [selectedWeek, seasonType]);
 
   const handlePrev = () => {
-    const currentIndex = weeks.findIndex((w) => w.number === selectedWeek);
+    const currentIndex = weeks.findIndex(matchesWeek);
     if (currentIndex > 0) {
       onWeekChange(weeks[currentIndex - 1].number);
     }
   };
 
   const handleNext = () => {
-    const currentIndex = weeks.findIndex((w) => w.number === selectedWeek);
+    const currentIndex = weeks.findIndex(matchesWeek);
     if (currentIndex < weeks.length - 1) {
       onWeekChange(weeks[currentIndex + 1].number);
     }
   };
 
-  const currentIndex = weeks.findIndex((w) => w.number === selectedWeek);
+  const currentIndex = weeks.findIndex(matchesWeek);
   const canGoPrev = currentIndex > 0;
   const canGoNext = currentIndex < weeks.length - 1;
 
@@ -106,12 +116,12 @@ export default function WeekSelector({
       >
         <div className="flex gap-1 px-1">
           {weeks.map((week) => {
-            const isSelected = week.number === selectedWeek;
+            const isSelected = matchesWeek(week);
             const dateRange = formatDateRange(week.startDate, week.endDate);
 
             return (
               <button
-                key={week.number}
+                key={`${week.seasonType}-${week.number}`}
                 ref={isSelected ? selectedRef : null}
                 onClick={() => onWeekChange(week.number)}
                 className={`flex flex-col items-center px-4 py-2 rounded-lg whitespace-nowrap transition ${
