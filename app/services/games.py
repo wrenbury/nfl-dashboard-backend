@@ -464,9 +464,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     """
     Build a rich GameDetails payload for a single event.
 
-    Routes to appropriate data source:
-    - NFL: ESPN API
-    - CFB: CollegeFootballData API
+    Routes both NFL and CFB to ESPN API for live data.
 
     This must remain backwards compatible with existing GameDetails consumers:
     - summary
@@ -478,11 +476,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     New:
     - situation (clock, period, down & distance, possession, red zone)
     """
-    # Route CFB to CFBD API
-    if sport == "college-football":
-        return _cfb_game_details(event_id)
-
-    # NFL uses ESPN
+    # Both NFL and CFB now use ESPN for live data
     raw: Dict[str, Any] = espn.summary(sport, event_id)
 
     # For live games, also fetch from scoreboard to get real-time situation data
@@ -496,10 +490,10 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
                 competitions = event.get("competitions") or [{}]
                 if competitions:
                     scoreboard_situation = competitions[0].get("situation")
-                    print(f"[NFL Game Details] Found situation in scoreboard: {scoreboard_situation}")
+                    print(f"[{sport.upper()} Game Details] Found situation in scoreboard: {scoreboard_situation}")
                 break
     except Exception as e:
-        print(f"[NFL Game Details] Error fetching scoreboard for situation: {e}")
+        print(f"[{sport.upper()} Game Details] Error fetching scoreboard for situation: {e}")
 
     header = raw.get("header") or {}
     competitions = header.get("competitions") or [{}]
@@ -585,12 +579,12 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     # --- Situation: clock + period + down & distance + possession ---------------
     # Prefer scoreboard situation (live data) over summary situation
     raw_situation = scoreboard_situation if scoreboard_situation else (comp0.get("situation") or {})
-    print(f"[NFL Game Details] Raw situation data from {'scoreboard' if scoreboard_situation else 'summary'}: {raw_situation}")
+    print(f"[{sport.upper()} Game Details] Raw situation data from {'scoreboard' if scoreboard_situation else 'summary'}: {raw_situation}")
     situation: GameSituation | None = None
 
-    # Debug info for NFL games
+    # Debug info
     debug_info = {
-        "sport": "nfl",
+        "sport": sport,
         "raw_situation": raw_situation,
         "has_situation_data": bool(raw_situation),
         "situation_source": "scoreboard" if scoreboard_situation else "summary",
@@ -598,7 +592,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
 
     if raw_situation:
         yard_line = raw_situation.get("yardLine")
-        print(f"[NFL Game Details] Extracted yardLine: {yard_line} (type: {type(yard_line)})")
+        print(f"[{sport.upper()} Game Details] Extracted yardLine: {yard_line} (type: {type(yard_line)})")
         debug_info["yardLine_extracted"] = yard_line
         debug_info["yardLine_type"] = str(type(yard_line).__name__)
 
@@ -614,10 +608,10 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
             possessionText=raw_situation.get("possessionText"),
             isRedZone=raw_situation.get("isRedZone"),
         )
-        print(f"[NFL Game Details] Created situation with yardLine: {situation.yardLine}")
+        print(f"[{sport.upper()} Game Details] Created situation with yardLine: {situation.yardLine}")
         debug_info["situation_created"] = True
     else:
-        print(f"[NFL Game Details] No situation data available (game may not be live)")
+        print(f"[{sport.upper()} Game Details] No situation data available (game may not be live)")
         debug_info["situation_created"] = False
 
     # --- Plays + win probability (unchanged) ------------------------------------
