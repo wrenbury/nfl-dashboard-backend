@@ -622,50 +622,53 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     # This prevents showing "future" quarters that haven't been played yet
     if win_probability and isinstance(win_probability, list) and situation and situation.period:
         current_period = situation.period
-        filtered_plays = []
+        total_plays = len(win_probability)
 
-        print(f"[{sport.upper()} Game Details] Filtering win probability - current period: {current_period}, total plays: {len(win_probability)}")
+        print(f"[{sport.upper()} Game Details] Filtering win probability - current period: {current_period}, total plays: {total_plays}")
 
-        # Debug: show first few plays to understand structure
-        if len(win_probability) > 0:
+        # Check if plays have period information
+        has_period_info = False
+        if total_plays > 0:
             sample_play = win_probability[0]
-            print(f"[{sport.upper()} Game Details] Sample play structure: {list(sample_play.keys()) if isinstance(sample_play, dict) else type(sample_play)}")
             if isinstance(sample_play, dict):
-                print(f"[{sport.upper()} Game Details] Sample play period field: {sample_play.get('period')} qtr field: {sample_play.get('qtr')}")
+                has_period_info = 'period' in sample_play or 'qtr' in sample_play
+                print(f"[{sport.upper()} Game Details] Sample play keys: {list(sample_play.keys())[:5]}, has period info: {has_period_info}")
 
-        for idx, play in enumerate(win_probability):
-            if isinstance(play, dict):
-                # Try multiple field names for period
-                play_period = None
-                if 'period' in play:
-                    period_val = play['period']
-                    # Handle both direct int and nested object
-                    if isinstance(period_val, int):
-                        play_period = period_val
-                    elif isinstance(period_val, dict) and 'number' in period_val:
-                        play_period = period_val['number']
+        if has_period_info:
+            # NFL-style filtering: use period field
+            filtered_plays = []
+            for play in win_probability:
+                if isinstance(play, dict):
+                    play_period = None
+                    if 'period' in play:
+                        period_val = play['period']
+                        if isinstance(period_val, int):
+                            play_period = period_val
+                        elif isinstance(period_val, dict) and 'number' in period_val:
+                            play_period = period_val['number']
+                    if play_period is None and 'qtr' in play:
+                        play_period = play['qtr']
 
-                if play_period is None and 'qtr' in play:
-                    play_period = play['qtr']
+                    if play_period is not None and play_period <= current_period:
+                        filtered_plays.append(play)
 
-                # Debug first and last few plays
-                if idx < 3 or idx >= len(win_probability) - 3:
-                    print(f"[{sport.upper()} Game Details] Play {idx}: period={play_period}, keys={list(play.keys())[:5]}")
-
-                # Only include plays from periods that have started or completed
-                if play_period is not None and play_period <= current_period:
-                    filtered_plays.append(play)
-                elif play_period is None:
-                    # If we can't determine period, include it (might be early game data)
-                    filtered_plays.append(play)
-
-        print(f"[{sport.upper()} Game Details] After filtering: {len(filtered_plays)} plays (removed {len(win_probability) - len(filtered_plays)} future plays)")
-
-        # Always use filtered data if we have it
-        if filtered_plays:
-            win_probability = filtered_plays
+            if filtered_plays:
+                win_probability = filtered_plays
+                print(f"[{sport.upper()} Game Details] Filtered by period: {len(filtered_plays)} plays")
         else:
-            print(f"[{sport.upper()} Game Details] WARNING: No plays after filtering, keeping original data")
+            # CFB-style filtering: estimate based on game progress
+            # Quarters are roughly equal, so estimate play index based on period
+            # Period 1: 0-25%, Period 2: 25-50%, Period 3: 50-75%, Period 4: 75-100%
+            estimated_progress = current_period / 4.0
+            cutoff_index = int(total_plays * estimated_progress)
+
+            # Add a small buffer to account for variance in play distribution
+            # (some quarters have more plays than others)
+            buffer = int(total_plays * 0.05)  # 5% buffer
+            cutoff_index = min(cutoff_index + buffer, total_plays)
+
+            win_probability = win_probability[:cutoff_index]
+            print(f"[{sport.upper()} Game Details] Filtered by estimated progress ({estimated_progress:.1%}): {cutoff_index}/{total_plays} plays (removed {total_plays - cutoff_index})")
 
     return GameDetails(
         summary=summary,
