@@ -11,6 +11,7 @@ type Props = {
   awayTeamColor?: string;
   homeTeamAbbr?: string;
   awayTeamAbbr?: string;
+  sport?: "nfl" | "college-football";
 };
 
 export default function FieldDisplay({
@@ -21,6 +22,7 @@ export default function FieldDisplay({
   awayTeamColor = "#a71930",
   homeTeamAbbr = "HOME",
   awayTeamAbbr = "AWAY",
+  sport = "nfl",
 }: Props) {
   // Debug logging to help troubleshoot yardLine issue
   console.log("FieldDisplay - situation data:", situation);
@@ -33,17 +35,50 @@ export default function FieldDisplay({
     ? situation.yardLine
     : 50;
 
-  // Determine if ball is in home team territory by checking possessionText or downDistanceText
-  // possessionText format: "SF 40" (SF has ball at SF 40 yard line)
-  // downDistanceText format: "1st & 10 at SF 40" (ball is at SF 40 yard line)
+  // For CFB, ESPN's yardLine doesn't always match possessionText, so parse it directly
+  // possessionText format: "SF 40" or "1st & 10 at SF 40"
   const textToCheck = situation?.possessionText || situation?.downDistanceText || "";
-  const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
-                           textToCheck.includes(` at ${homeTeamAbbr} `) ||
-                           textToCheck.startsWith(`${homeTeamAbbr} `);
 
-  // Convert to absolute yardLine (0-100 from away goal line)
-  // If in home territory, we need to invert: 100 - yardLine
-  const yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+  let yardLine = rawYardLine;
+
+  if (sport === "college-football" && textToCheck) {
+    // Try to parse yard line from possessionText (more reliable for CFB)
+    // Format: "TEAM ##" or "at TEAM ##"
+    const match = textToCheck.match(/(?:at\s+)?([A-Z]{2,4})\s+(\d+)/);
+    if (match) {
+      const [, teamAbbr, yardStr] = match;
+      const parsedYard = parseInt(yardStr, 10);
+
+      console.log("FieldDisplay - Parsed from possessionText:", { teamAbbr, parsedYard, homeTeamAbbr, awayTeamAbbr });
+
+      // Determine if this is home or away territory
+      if (teamAbbr === homeTeamAbbr) {
+        // Ball is in home territory, convert to absolute position from away goal
+        yardLine = 100 - parsedYard;
+      } else if (teamAbbr === awayTeamAbbr) {
+        // Ball is in away territory
+        yardLine = parsedYard;
+      } else {
+        // Fallback to original logic if team doesn't match
+        const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
+                                 textToCheck.includes(` at ${homeTeamAbbr} `) ||
+                                 textToCheck.startsWith(`${homeTeamAbbr} `);
+        yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+      }
+    } else {
+      // Fallback to original logic
+      const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
+                               textToCheck.includes(` at ${homeTeamAbbr} `) ||
+                               textToCheck.startsWith(`${homeTeamAbbr} `);
+      yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+    }
+  } else {
+    // NFL: use original logic
+    const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
+                             textToCheck.includes(` at ${homeTeamAbbr} `) ||
+                             textToCheck.startsWith(`${homeTeamAbbr} `);
+    yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+  }
 
   // Infer possession team from possessionText when ESPN doesn't provide possessionTeamId
   // possessionText format: "SF 40" or "SF ball on LAC 44" - first team abbreviation has possession
@@ -85,9 +120,11 @@ export default function FieldDisplay({
 
   // Helper function to get team logo URL
   const getTeamLogoUrl = (teamId: string) => {
-    const abbr = teamId === homeTeamId ? homeTeamAbbr?.toLowerCase() : awayTeamAbbr?.toLowerCase();
-    const url = `https://a.espncdn.com/combiner/i?img=/i/teamlogos/nfl/500/scoreboard/${abbr}.png&cquality=80&h=80&w=80`;
-    console.log("FieldDisplay - getTeamLogoUrl called with teamId:", teamId, "abbr:", abbr, "url:", url);
+    // For CFB, use team ID directly; for NFL, use abbreviation
+    const leaguePath = sport === "college-football" ? "ncaa" : "nfl";
+    const identifier = sport === "college-football" ? teamId : (teamId === homeTeamId ? homeTeamAbbr?.toLowerCase() : awayTeamAbbr?.toLowerCase());
+    const url = `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${leaguePath}/500/scoreboard/${identifier}.png&cquality=80&h=80&w=80`;
+    console.log("FieldDisplay - getTeamLogoUrl called with teamId:", teamId, "sport:", sport, "identifier:", identifier, "url:", url);
     return url;
   };
 

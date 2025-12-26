@@ -291,6 +291,7 @@ export default function Game() {
                 awayTeamColor={away?.team?.color ? `#${away.team.color}` : undefined}
                 homeTeamAbbr={home?.team?.abbreviation || "HOME"}
                 awayTeamAbbr={away?.team?.abbreviation || "AWAY"}
+                sport={sport}
               />
             )}
 
