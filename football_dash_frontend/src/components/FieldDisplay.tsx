@@ -71,7 +71,6 @@ export default function FieldDisplay({
   console.log("FieldDisplay - rawYardLine:", rawYardLine, "adjusted yardLine:", yardLine);
   console.log("FieldDisplay - possessionTeamId:", situation?.possessionTeamId, "inferred:", inferredPossessionTeamId);
   console.log("FieldDisplay - ballX:", 50 + (yardLine * 5), "ballY:", 56.35);
-  console.log("FieldDisplay - Logo will render for team ID:", inferredPossessionTeamId, "URL:", inferredPossessionTeamId ? getTeamLogoUrl(inferredPossessionTeamId) : "none");
 
   // ESPN's coordinate system:
   // x=0 to x=50: Away end zone
@@ -87,8 +86,17 @@ export default function FieldDisplay({
   // Helper function to get team logo URL
   const getTeamLogoUrl = (teamId: string) => {
     const abbr = teamId === homeTeamId ? homeTeamAbbr?.toLowerCase() : awayTeamAbbr?.toLowerCase();
-    return `https://a.espncdn.com/combiner/i?img=/i/teamlogos/nfl/500/scoreboard/${abbr}.png&cquality=80&h=80&w=80`;
+    const url = `https://a.espncdn.com/combiner/i?img=/i/teamlogos/nfl/500/scoreboard/${abbr}.png&cquality=80&h=80&w=80`;
+    console.log("FieldDisplay - getTeamLogoUrl called with teamId:", teamId, "abbr:", abbr, "url:", url);
+    return url;
   };
+
+  // Log final rendering values
+  if (inferredPossessionTeamId) {
+    console.log("FieldDisplay - RENDERING LOGO with ballX:", ballX, "ballY:", ballY, "transform:", `translate(${ballX}, ${ballY - 28})`);
+  } else {
+    console.log("FieldDisplay - NO LOGO (no possession team ID)");
+  }
 
   return (
     <div className="FieldView">

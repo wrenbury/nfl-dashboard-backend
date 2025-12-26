@@ -43,9 +43,9 @@ def get_cfb_conferences():
 
 
 @router.get("/scoreboard/{sport}", response_model=list[GameSummary])
-def get_scoreboard(sport: Sport, date: str | None = None, week: int | None = None, conference: str | None = None):
+def get_scoreboard(sport: Sport, date: str | None = None, week: int | None = None, conference: str | None = None, season_type: int | None = None):
     try:
-        return sb.get_scoreboard(sport, date=date, week=week, conference=conference)
+        return sb.get_scoreboard(sport, date=date, week=week, conference=conference, season_type=season_type)
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
 

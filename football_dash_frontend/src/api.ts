@@ -37,12 +37,13 @@ export type Conference = {
 export const API = {
   scoreboard(
     sport: "nfl" | "college-football",
-    opts: { date?: string; week?: number; conference?: string } = {}
+    opts: { date?: string; week?: number; conference?: string; seasonType?: number } = {}
   ): string {
     const params = new URLSearchParams();
     if (opts.date) params.set("date", opts.date);
     if (typeof opts.week === "number") params.set("week", String(opts.week));
     if (opts.conference) params.set("conference", opts.conference);
+    if (typeof opts.seasonType === "number") params.set("season_type", String(opts.seasonType));
     const qs = params.toString();
     const path = `/api/scoreboard/${sport}${qs ? `?${qs}` : ""}`;
     return buildUrl(path);

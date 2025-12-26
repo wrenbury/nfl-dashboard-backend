@@ -244,12 +244,19 @@ def _build_cfb_scoreboard_from_cfbd(
     date: str | None,
     week: int | None,
     conference: str | None = None,
+    season_type: int = 2,
 ) -> List[GameSummary]:
     """
     Build a GameSummary-style scoreboard for college football using CFBD.
 
     This keeps the same GameSummary shape used for NFL so the frontend can treat
     both leagues uniformly while sourcing data from different providers.
+
+    Args:
+        date: Date string in YYYY-MM-DD format
+        week: Week number
+        conference: Conference filter
+        season_type: Season type (2=regular, 3=postseason)
     """
     # Derive season year from date if present, otherwise fall back to current year.
     year: Optional[int] = None
@@ -267,9 +274,14 @@ def _build_cfb_scoreboard_from_cfbd(
     if cfbd_week is None:
         return []
 
+    # Map season type integer to CFBD season type string
+    season_type_str = "regular"
+    if season_type == 3:
+        season_type_str = "postseason"
+
     # CFBD /games -> "Games and results" (includes points in v2).
     # Pass conference filter to only show games from selected conference
-    raw_games = cfbd.games(year=year, week=cfbd_week, seasonType="regular", conference=conference) or []
+    raw_games = cfbd.games(year=year, week=cfbd_week, seasonType=season_type_str, conference=conference) or []
     out: List[GameSummary] = []
 
     STATUS_LABELS = {
@@ -421,7 +433,7 @@ def _build_cfb_scoreboard_from_cfbd(
 def get_cfb_weeks(year: int) -> List[Week]:
     """
     Get CFB season weeks from CFBD calendar API.
-    Returns a list of Week objects for the given season.
+    Returns a list of Week objects for both regular season and postseason.
     """
     raw = cfbd.calendar(year)
     weeks: List[Week] = []
@@ -434,23 +446,44 @@ def get_cfb_weeks(year: int) -> List[Week]:
             continue
 
         week_num = entry.get("week")
-        season_type = entry.get("seasonType", "regular")
+        season_type_str = entry.get("seasonType", "regular")
         start_date = entry.get("firstGameStart") or entry.get("startDate", "")
         end_date = entry.get("lastGameStart") or entry.get("endDate", "")
 
-        if week_num is not None and season_type == "regular":
+        # Map season type string to integer
+        # CFBD uses: "regular", "postseason"
+        season_type_int = 2  # Default to regular season
+        if season_type_str == "postseason":
+            season_type_int = 3
+        elif season_type_str == "regular":
+            season_type_int = 2
+
+        if week_num is not None:
             # Convert timestamps to date strings if needed
             if start_date and "T" in start_date:
                 start_date = _convert_utc_to_et_date(start_date)
             if end_date and "T" in end_date:
                 end_date = _convert_utc_to_et_date(end_date)
 
+            # Create label based on season type
+            if season_type_int == 3:
+                # Postseason - use descriptive labels
+                # Week 1 = Bowl Games, Week 2 = CFP
+                if week_num == 1:
+                    label = "Bowl Games"
+                elif week_num == 2:
+                    label = "CFP"
+                else:
+                    label = f"Postseason Week {week_num}"
+            else:
+                label = f"Week {week_num}"
+
             weeks.append(Week(
                 number=int(week_num),
-                label=f"Week {week_num}",
+                label=label,
                 startDate=start_date,
                 endDate=end_date,
-                seasonType=2,  # Regular season
+                seasonType=season_type_int,
             ))
 
     return weeks
@@ -504,7 +537,7 @@ def get_cfb_conferences() -> List[dict]:
     return conferences
 
 
-def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference: str | None = None):
+def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference: str | None = None, season_type: int | None = None):
     """Route NFL to ESPN, CFB to CFBD."""
     if sport == "nfl":
         # Look up season type for the requested week
@@ -520,7 +553,23 @@ def get_scoreboard(sport: Sport, date: str | None, week: int | None, conference:
         return parse_scoreboard(sport, raw)
 
     if sport == "college-football":
-        return _build_cfb_scoreboard_from_cfbd(date=date, week=week, conference=conference)
+        # For CFB, determine season type from week if not provided
+        if season_type is None and week is not None:
+            # Look up season type for the requested week
+            year = datetime.now(timezone.utc).year
+            if date and len(date) >= 4 and date[:4].isdigit():
+                year = int(date[:4])
+            weeks = get_cfb_weeks(year)
+            for w in weeks:
+                if w.number == week:
+                    season_type = w.seasonType
+                    break
+
+        # Default to regular season if still not set
+        if season_type is None:
+            season_type = 2
+
+        return _build_cfb_scoreboard_from_cfbd(date=date, week=week, conference=conference, season_type=season_type)
 
     # Unknown sport -> empty board (defensive default)
     return []
