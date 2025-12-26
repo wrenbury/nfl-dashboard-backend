@@ -135,6 +135,38 @@ function getCurrentCFBYear(): number {
   return month >= 7 ? year : year - 1;
 }
 
+// Helper function to determine game status category for sorting
+function getGameStatusPriority(status: string): number {
+  const statusLower = status.toLowerCase();
+
+  // Ongoing games (highest priority)
+  if (statusLower.includes("progress") ||
+      statusLower.includes("half") ||
+      statusLower.includes("quarter") ||
+      statusLower.includes("qtr") ||
+      statusLower.includes("overtime") ||
+      statusLower.includes("delay")) {
+    return 1;
+  }
+
+  // Upcoming/scheduled games
+  if (statusLower.includes("scheduled") ||
+      statusLower.includes("pre") ||
+      /^\d{1,2}:\d{2}\s*(am|pm)?$/i.test(statusLower)) {
+    return 2;
+  }
+
+  // Completed games (lowest priority)
+  if (statusLower.includes("final") ||
+      statusLower.includes("complete") ||
+      statusLower.includes("postgame")) {
+    return 3;
+  }
+
+  // Default to upcoming if unclear
+  return 2;
+}
+
 function groupGamesByDate(games: any[]): Map<string, any[]> {
   const grouped = new Map<string, any[]>();
 
@@ -147,6 +179,24 @@ function groupGamesByDate(games: any[]): Map<string, any[]> {
     const existing = grouped.get(dateStr) || [];
     existing.push(game);
     grouped.set(dateStr, existing);
+  }
+
+  // Sort games within each date group: ongoing → upcoming → completed
+  for (const [date, dateGames] of grouped.entries()) {
+    dateGames.sort((a, b) => {
+      const priorityA = getGameStatusPriority(a.status || '');
+      const priorityB = getGameStatusPriority(b.status || '');
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB; // Lower priority number = shown first
+      }
+
+      // Within same status category, sort by start time
+      const timeA = new Date(a.startTime).getTime();
+      const timeB = new Date(b.startTime).getTime();
+      return timeA - timeB;
+    });
+    grouped.set(date, dateGames);
   }
 
   return grouped;

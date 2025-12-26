@@ -169,7 +169,9 @@ function formatYAxisTick(v: number): string {
 // Generate team logo URL using ESPN combiner API
 function getTeamLogoUrl(teamId: string | undefined, league: string = "nfl"): string | null {
   if (!teamId) return null;
-  return `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${league}/500/${teamId}.png&h=40&w=40`;
+  // CFB uses 'ncaa' path instead of 'college-football'
+  const leaguePath = league === "college-football" ? "ncaa" : league;
+  return `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${leaguePath}/500/${teamId}.png&h=40&w=40`;
 }
 
 export default function WinProb({
