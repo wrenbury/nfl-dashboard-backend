@@ -10,7 +10,7 @@ def _league(sport: str) -> str:
 def _base(sport: str) -> str:
     return f"{settings.ESPN_BASE}/{_league(sport)}"
 
-def scoreboard(sport: str, date: Optional[str] = None, week: Optional[int] = None, seasontype: Optional[int] = None) -> Dict[str, Any]:
+def scoreboard(sport: str, date: Optional[str] = None, week: Optional[int] = None, seasontype: Optional[int] = None, groups: Optional[int] = None) -> Dict[str, Any]:
     params = {}
     if date:
         params["dates"] = date  # YYYYMMDD
@@ -18,7 +18,9 @@ def scoreboard(sport: str, date: Optional[str] = None, week: Optional[int] = Non
         params["week"] = week
     if seasontype:
         params["seasontype"] = seasontype  # 1=preseason, 2=regular, 3=postseason
-    key = f"espn:scoreboard:{sport}:{date}:{week}:{seasontype}"
+    if groups is not None:
+        params["groups"] = groups  # Conference/division grouping (e.g., 80=all FBS, 8=SEC)
+    key = f"espn:scoreboard:{sport}:{date}:{week}:{seasontype}:{groups}"
     if (v := cache.get(key)) is not None:
         return v
     url = f"{_base(sport)}/scoreboard"
