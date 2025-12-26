@@ -39,6 +39,11 @@ export default function FieldDisplay({
   // possessionText format: "SF 40" or "1st & 10 at SF 40"
   const textToCheck = situation?.possessionText || situation?.downDistanceText || "";
 
+  // Calculate if ball is in home team territory (for logging and fallback)
+  const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
+                           textToCheck.includes(` at ${homeTeamAbbr} `) ||
+                           textToCheck.startsWith(`${homeTeamAbbr} `);
+
   let yardLine = rawYardLine;
 
   if (sport === "college-football" && textToCheck) {
@@ -60,23 +65,14 @@ export default function FieldDisplay({
         yardLine = parsedYard;
       } else {
         // Fallback to original logic if team doesn't match
-        const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
-                                 textToCheck.includes(` at ${homeTeamAbbr} `) ||
-                                 textToCheck.startsWith(`${homeTeamAbbr} `);
         yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
       }
     } else {
       // Fallback to original logic
-      const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
-                               textToCheck.includes(` at ${homeTeamAbbr} `) ||
-                               textToCheck.startsWith(`${homeTeamAbbr} `);
       yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
     }
   } else {
     // NFL: use original logic
-    const isInHomeTerritory = textToCheck.includes(` ${homeTeamAbbr} `) ||
-                             textToCheck.includes(` at ${homeTeamAbbr} `) ||
-                             textToCheck.startsWith(`${homeTeamAbbr} `);
     yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
   }
 
