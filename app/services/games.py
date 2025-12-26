@@ -614,9 +614,27 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         print(f"[{sport.upper()} Game Details] No situation data available (game may not be live)")
         debug_info["situation_created"] = False
 
-    # --- Plays + win probability (unchanged) ------------------------------------
+    # --- Plays + win probability ------------------------------------
     plays = ((raw.get("drives") or {}).get("current") or {}).get("plays")
     win_probability = raw.get("winprobability")
+
+    # Filter win probability data to only show up to current period for live games
+    # This prevents showing "future" quarters that haven't been played yet
+    if win_probability and situation and situation.period:
+        current_period = situation.period
+        filtered_plays = []
+
+        for play in win_probability:
+            if isinstance(play, dict):
+                play_period = play.get("period") or play.get("qtr")
+                # Only include plays from periods that have started or completed
+                if play_period and play_period <= current_period:
+                    filtered_plays.append(play)
+
+        # Only replace if we actually filtered something
+        if filtered_plays and len(filtered_plays) < len(win_probability):
+            win_probability = filtered_plays
+            print(f"[{sport.upper()} Game Details] Filtered win probability: {len(filtered_plays)} plays (current period: {current_period})")
 
     return GameDetails(
         summary=summary,
