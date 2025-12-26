@@ -198,11 +198,19 @@ export default function Scoreboard({ sport }: Props) {
   const sortedDates = Array.from(gamesByDate.keys()).sort();
 
   // Update selectedWeek and seasonType when week changes
-  const handleWeekChange = (weekNum: number) => {
+  const handleWeekChange = (weekNum: number, newSeasonType?: number) => {
     setSelectedWeek(weekNum);
-    const week = weeks.find(w => w.number === weekNum && w.seasonType === selectedSeasonType);
-    if (week) {
-      setSelectedSeasonType(week.seasonType);
+
+    // If seasonType was provided (from clicking a specific week), use it
+    if (newSeasonType !== undefined) {
+      setSelectedSeasonType(newSeasonType);
+    } else {
+      // Otherwise, try to find the week with the current seasonType, or fallback to any match
+      const week = weeks.find(w => w.number === weekNum && w.seasonType === selectedSeasonType) ||
+                   weeks.find(w => w.number === weekNum);
+      if (week) {
+        setSelectedSeasonType(week.seasonType);
+      }
     }
   };
 
