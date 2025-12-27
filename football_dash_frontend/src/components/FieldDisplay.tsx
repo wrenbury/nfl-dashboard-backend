@@ -287,7 +287,13 @@ export default function FieldDisplay({
 
             {/* Team logo bubble */}
             {inferredPossessionTeamId && (
-              <g className="TeamLogoBubble fadeIn" transform={`translate(${ballX}, ${ballY - 28})`}>
+              <g
+                className="TeamLogoBubble fadeIn"
+                transform={`translate(${ballX}, ${ballY - 28})`}
+                data-debug-ballx={ballX}
+                data-debug-bally={ballY}
+                data-debug-transform={`translate(${ballX}, ${ballY - 28})`}
+              >
                 <path
                   fill="rgba(0, 0, 0, 0.8)"
                   stroke="white"
