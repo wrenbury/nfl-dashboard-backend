@@ -181,7 +181,7 @@ function groupGamesByDate(games: any[]): Map<string, any[]> {
     grouped.set(dateStr, existing);
   }
 
-  // Sort games within each date group: ongoing → upcoming → completed
+  // Sort games within each date group: in-progress → scheduled → final
   for (const [date, dateGames] of grouped.entries()) {
     dateGames.sort((a, b) => {
       const priorityA = getGameStatusPriority(a.status || '');
@@ -199,37 +199,42 @@ function groupGamesByDate(games: any[]): Map<string, any[]> {
     grouped.set(date, dateGames);
   }
 
-  // Sort the date groups: current/future dates first, past dates last
+  // Sort the date groups: today → future dates → past dates
   const today = new Date();
-  today.setHours(0, 0, 0, 0); // Reset to start of day
-  const todayStr = today.toISOString().split("T")[0];
+  today.setHours(0, 0, 0, 0);
+  // Format today's date in local time (not UTC) to avoid timezone issues
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
-  const sortedMap = new Map(
-    Array.from(grouped.entries()).sort((a, b) => {
-      const dateA = a[0];
-      const dateB = b[0];
+  const sortedEntries = Array.from(grouped.entries()).sort((a, b) => {
+    const dateA = a[0];
+    const dateB = b[0];
 
-      // Current date comes first
-      if (dateA === todayStr) return -1;
-      if (dateB === todayStr) return 1;
+    // Today always comes first
+    if (dateA === todayStr && dateB !== todayStr) return -1;
+    if (dateB === todayStr && dateA !== todayStr) return 1;
+    if (dateA === todayStr && dateB === todayStr) return 0;
 
-      const dateAObj = new Date(dateA + "T00:00:00");
-      const dateBObj = new Date(dateB + "T00:00:00");
+    // Create date objects for comparison
+    const dateAObj = new Date(dateA + "T00:00:00");
+    const dateBObj = new Date(dateB + "T00:00:00");
+    const dateAIsPast = dateAObj < today;
+    const dateBIsPast = dateBObj < today;
 
-      // Both are past or both are future - sort chronologically
-      if ((dateAObj < today && dateBObj < today) || (dateAObj >= today && dateBObj >= today)) {
-        return dateAObj.getTime() - dateBObj.getTime();
-      }
+    // Both future: show soonest first (chronological order)
+    if (!dateAIsPast && !dateBIsPast) {
+      return dateAObj.getTime() - dateBObj.getTime();
+    }
 
-      // One is past, one is future - future comes first
-      if (dateAObj >= today && dateBObj < today) return -1;
-      if (dateAObj < today && dateBObj >= today) return 1;
+    // Both past: show most recent first (reverse chronological order)
+    if (dateAIsPast && dateBIsPast) {
+      return dateBObj.getTime() - dateAObj.getTime();
+    }
 
-      return 0;
-    })
-  );
+    // One future, one past: future comes first
+    return dateAIsPast ? 1 : -1;
+  });
 
-  return sortedMap;
+  return new Map(sortedEntries);
 }
 
 function formatDateHeader(dateStr: string): string {
