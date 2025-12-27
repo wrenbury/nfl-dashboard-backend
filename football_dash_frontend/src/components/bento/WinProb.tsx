@@ -143,11 +143,28 @@ function normalizeWinProb(raw: any): NormalizedPoint[] {
   return out;
 }
 
-// Quarter divider positions (boundaries between quarters)
-const QUARTER_DIVIDERS = [0.25, 0.5, 0.75];
+// Generate quarter dividers and ticks based on current period
+function getQuarterMarkers(currentPeriod: number | null) {
+  // Default to showing all 4 quarters if period unknown
+  const maxPeriod = currentPeriod ?? 4;
+  const numPeriods = Math.min(Math.max(maxPeriod, 1), 4); // Clamp between 1 and 4
 
-// ESPN-style quarter tick positions (center of each quarter)
-const QUARTER_TICKS = [0.125, 0.375, 0.625, 0.875];
+  const dividers: number[] = [];
+  const ticks: number[] = [];
+
+  // Generate dividers and ticks up to current period only
+  for (let i = 1; i <= numPeriods; i++) {
+    const tickPos = (i - 0.5) / 4; // Center of quarter i
+    ticks.push(tickPos);
+
+    if (i < numPeriods) {
+      const dividerPos = i / 4; // Boundary after quarter i
+      dividers.push(dividerPos);
+    }
+  }
+
+  return { dividers, ticks };
+}
 
 function formatQuarterTick(x: number): string {
   if (Math.abs(x - 0.125) < 0.01) return "1st";
@@ -247,9 +264,13 @@ export default function WinProb({
   const isGameComplete = gameStatus === "final" || gameStatus === "post" || lastT >= 1;
   const homeWins = homePct > 50;
 
+  // Get quarter markers based on current period
+  const currentPeriod = situation?.period ?? null;
+  const { dividers: quarterDividers, ticks: quarterTicks } = getQuarterMarkers(currentPeriod);
+
   // Calculate ticks based on game progress - only show ticks up to current point
   // Add a small tolerance to ensure we show the current quarter tick
-  const visibleQuarterTicks = QUARTER_TICKS.filter((t) => t < domainMax - 0.01);
+  const visibleQuarterTicks = quarterTicks.filter((t) => t < domainMax - 0.01);
   if (domainMax > 1.0) {
     // Add OT tick if overtime
     visibleQuarterTicks.push(1.05);
@@ -326,7 +347,7 @@ export default function WinProb({
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
 
             {/* Quarter divider lines */}
-            {QUARTER_DIVIDERS.filter((d) => d <= domainMax).map((d) => (
+            {quarterDividers.filter((d) => d <= domainMax).map((d) => (
               <ReferenceLine
                 key={`divider-${d}`}
                 x={d}
