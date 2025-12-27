@@ -301,8 +301,8 @@ export default function Scoreboard({ sport }: Props) {
   const games = Array.isArray(data) ? data : [];
   const gamesByDate = groupGamesByDate(games);
 
-  // Sort dates chronologically
-  const sortedDates = Array.from(gamesByDate.keys()).sort();
+  // Get dates in the order returned by groupGamesByDate (already sorted: today → future → past)
+  const sortedDates = Array.from(gamesByDate.keys());
 
   // Update selectedWeek and seasonType when week changes
   const handleWeekChange = (weekNum: number, newSeasonType?: number) => {
