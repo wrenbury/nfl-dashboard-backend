@@ -521,6 +521,26 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     season_type = None
     game_date = comp0.get("date") or header.get("date") or ""
 
+    # Check if this is a CFP game by looking at game note or competition labels
+    is_cfp_game = False
+    game_note = header.get("gameNote", "")
+    comp_notes = comp0.get("notes", [])
+
+    # Check for CFP indicators in game note or competition notes
+    cfp_indicators = ["playoff", "cfp", "championship", "semifinal", "national championship"]
+    if game_note:
+        is_cfp_game = any(indicator in game_note.lower() for indicator in cfp_indicators)
+
+    if not is_cfp_game and comp_notes:
+        for note in comp_notes:
+            if isinstance(note, dict):
+                headline = note.get("headline", "")
+                if headline and any(indicator in headline.lower() for indicator in cfp_indicators):
+                    is_cfp_game = True
+                    break
+
+    print(f"[{sport.upper()} Game Details] Game note: {game_note}, Is CFP: {is_cfp_game}")
+
     if sport == "college-football" and game_date:
         try:
             # Get all CFB weeks from calendar (has absolute week numbers and date ranges)
@@ -532,14 +552,34 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
             print(f"[{sport.upper()} Game Details] Game date: {game_date_str}")
 
             # Find which week this game falls into based on date range
+            # For CFP games, specifically look for week 999 or CFP label
+            matched_weeks = []
             for w in cfb_weeks:
                 if w.startDate and w.endDate:
                     # Check if game date falls within this week's range
                     if w.startDate <= game_date_str <= w.endDate:
-                        week = w.number
-                        season_type = w.seasonType
-                        print(f"[{sport.upper()} Game Details] Matched to week {week} ({w.label}, seasonType {season_type}) based on date range {w.startDate} to {w.endDate}")
-                        break
+                        matched_weeks.append(w)
+
+            # If multiple weeks match (e.g., BOWL GAMES and CFP have overlapping dates)
+            # prefer CFP week if this is identified as a CFP game
+            if matched_weeks:
+                if is_cfp_game:
+                    # Look for CFP week (usually week 999 or labeled "CFP")
+                    cfp_week = next((w for w in matched_weeks if w.number == 999 or "CFP" in w.label.upper()), None)
+                    if cfp_week:
+                        week = cfp_week.number
+                        season_type = cfp_week.seasonType
+                        print(f"[{sport.upper()} Game Details] CFP game matched to week {week} ({cfp_week.label}, seasonType {season_type})")
+                    else:
+                        # Fallback to first match
+                        week = matched_weeks[0].number
+                        season_type = matched_weeks[0].seasonType
+                        print(f"[{sport.upper()} Game Details] CFP game but no CFP week found, using week {week} ({matched_weeks[0].label}, seasonType {season_type})")
+                else:
+                    # Not a CFP game, use first matching week
+                    week = matched_weeks[0].number
+                    season_type = matched_weeks[0].seasonType
+                    print(f"[{sport.upper()} Game Details] Matched to week {week} ({matched_weeks[0].label}, seasonType {season_type}) based on date range {matched_weeks[0].startDate} to {matched_weeks[0].endDate}")
         except Exception as e:
             print(f"[{sport.upper()} Game Details] Error matching week by date: {e}")
 
