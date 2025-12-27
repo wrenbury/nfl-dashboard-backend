@@ -143,28 +143,11 @@ function normalizeWinProb(raw: any): NormalizedPoint[] {
   return out;
 }
 
-// Generate quarter dividers and ticks based on current period
-function getQuarterMarkers(currentPeriod: number | null) {
-  // Default to showing all 4 quarters if period unknown
-  const maxPeriod = currentPeriod ?? 4;
-  const numPeriods = Math.min(Math.max(maxPeriod, 1), 4); // Clamp between 1 and 4
+// Quarter divider positions (boundaries between quarters) - ESPN always shows all 4
+const QUARTER_DIVIDERS = [0.25, 0.5, 0.75];
 
-  const dividers: number[] = [];
-  const ticks: number[] = [];
-
-  // Generate dividers and ticks up to current period only
-  for (let i = 1; i <= numPeriods; i++) {
-    const tickPos = (i - 0.5) / 4; // Center of quarter i
-    ticks.push(tickPos);
-
-    if (i < numPeriods) {
-      const dividerPos = i / 4; // Boundary after quarter i
-      dividers.push(dividerPos);
-    }
-  }
-
-  return { dividers, ticks };
-}
+// ESPN-style quarter tick positions (center of each quarter) - ESPN always shows all 4
+const QUARTER_TICKS = [0.125, 0.375, 0.625, 0.875];
 
 function formatQuarterTick(x: number): string {
   if (Math.abs(x - 0.125) < 0.01) return "1st";
@@ -264,13 +247,9 @@ export default function WinProb({
   const isGameComplete = gameStatus === "final" || gameStatus === "post" || lastT >= 1;
   const homeWins = homePct > 50;
 
-  // Get quarter markers based on current period
-  const currentPeriod = situation?.period ?? null;
-  const { dividers: quarterDividers, ticks: quarterTicks } = getQuarterMarkers(currentPeriod);
-
-  // Calculate ticks based on game progress - only show ticks up to current point
-  // Add a small tolerance to ensure we show the current quarter tick
-  const visibleQuarterTicks = quarterTicks.filter((t) => t < domainMax - 0.01);
+  // ESPN always shows all 4 quarter labels, even for live games
+  // The data line stops at current time, but X-axis shows full game
+  const visibleQuarterTicks = [...QUARTER_TICKS];
   if (domainMax > 1.0) {
     // Add OT tick if overtime
     visibleQuarterTicks.push(1.05);
@@ -347,7 +326,7 @@ export default function WinProb({
             <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
 
             {/* Quarter divider lines */}
-            {quarterDividers.filter((d) => d <= domainMax).map((d) => (
+            {QUARTER_DIVIDERS.map((d) => (
               <ReferenceLine
                 key={`divider-${d}`}
                 x={d}
@@ -360,7 +339,7 @@ export default function WinProb({
             <XAxis
               dataKey="t"
               type="number"
-              domain={[0, domainMax]}
+              domain={[0, 1.0]}
               ticks={visibleQuarterTicks}
               tickFormatter={formatQuarterTick}
               tick={{ fontSize: 10, fill: "#94a3b8" }}

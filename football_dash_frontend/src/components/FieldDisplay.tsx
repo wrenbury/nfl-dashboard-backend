@@ -60,20 +60,25 @@ export default function FieldDisplay({
       if (teamAbbr === homeTeamAbbr) {
         // Ball is in home territory, convert to absolute position from away goal
         yardLine = 100 - parsedYard;
+        console.log("FieldDisplay - HOME territory: yardLine =", yardLine, "(100 -", parsedYard, ")");
       } else if (teamAbbr === awayTeamAbbr) {
         // Ball is in away territory
         yardLine = parsedYard;
+        console.log("FieldDisplay - AWAY territory: yardLine =", yardLine);
       } else {
         // Fallback to original logic if team doesn't match
         yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+        console.log("FieldDisplay - NO MATCH, fallback: yardLine =", yardLine);
       }
     } else {
       // Fallback to original logic
       yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+      console.log("FieldDisplay - NO REGEX MATCH, fallback: yardLine =", yardLine);
     }
   } else {
     // NFL: use original logic
     yardLine = isInHomeTerritory ? (100 - rawYardLine) : rawYardLine;
+    console.log("FieldDisplay - NFL logic: yardLine =", yardLine);
   }
 
   // Infer possession team from possessionText when ESPN doesn't provide possessionTeamId
