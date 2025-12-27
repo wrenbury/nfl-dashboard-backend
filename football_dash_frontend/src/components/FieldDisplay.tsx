@@ -119,9 +119,12 @@ export default function FieldDisplay({
     // For CFB, use team ID directly; for NFL, use abbreviation
     const leaguePath = sport === "college-football" ? "ncaa" : "nfl";
     const identifier = sport === "college-football" ? teamId : (teamId === homeTeamId ? homeTeamAbbr?.toLowerCase() : awayTeamAbbr?.toLowerCase());
-    const url = `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${leaguePath}/500/scoreboard/${identifier}.png&cquality=80&h=80&w=80`;
-    console.log("FieldDisplay - getTeamLogoUrl called with teamId:", teamId, "sport:", sport, "identifier:", identifier, "url:", url);
-    return url;
+    // CFB uses /ncaa/500/{id}.png, NFL uses /nfl/500/scoreboard/{abbr}.png
+    const pathFormat = sport === "college-football"
+      ? `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${leaguePath}/500/${identifier}.png&cquality=80&h=80&w=80`
+      : `https://a.espncdn.com/combiner/i?img=/i/teamlogos/${leaguePath}/500/scoreboard/${identifier}.png&cquality=80&h=80&w=80`;
+    console.log("FieldDisplay - getTeamLogoUrl called with teamId:", teamId, "sport:", sport, "identifier:", identifier, "url:", pathFormat);
+    return pathFormat;
   };
 
   // Log final rendering values
