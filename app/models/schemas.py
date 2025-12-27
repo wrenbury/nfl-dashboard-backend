@@ -31,6 +31,7 @@ class GameSummary(BaseModel):
     status: str
     venue: Optional[str] = None
     competitors: List[Competitor]
+    week: Optional[int] = None  # For back navigation to scoreboard
 
 
 class BoxScoreCategory(BaseModel):

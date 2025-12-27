@@ -1,8 +1,8 @@
 // football_dash_frontend/src/pages/Scoreboard.tsx
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import useSWR from "swr";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { API } from "../api";
 import type { Week, Conference } from "../api";
 import WeekSelector from "../components/WeekSelector";
@@ -215,8 +215,13 @@ function formatDateHeader(dateStr: string): string {
 export default function Scoreboard({ sport }: Props) {
   const currentYear = new Date().getFullYear();
   const cfbYear = getCurrentCFBYear();
+  const [searchParams] = useSearchParams();
 
-  const [selectedWeek, setSelectedWeek] = useState(sport === "nfl" ? getCurrentNflWeek() : 1);
+  // Check if week is in URL params (for back navigation from game page)
+  const weekFromUrl = searchParams.get('week');
+  const initialWeek = weekFromUrl ? parseInt(weekFromUrl, 10) : (sport === "nfl" ? getCurrentNflWeek() : 1);
+
+  const [selectedWeek, setSelectedWeek] = useState(initialWeek);
   const [selectedSeasonType, setSelectedSeasonType] = useState<number>(2); // 2=regular, 3=postseason
   const [selectedConference, setSelectedConference] = useState<number>(80); // 80 = All FBS games
 

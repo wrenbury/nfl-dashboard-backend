@@ -162,7 +162,10 @@ export default function Game() {
       {/* Top meta row: back link + date/status (ESPN-style) */}
       <div className="flex items-center justify-between gap-4">
         <Link
-          to={sport === "college-football" ? "/cfb" : "/nfl"}
+          to={sport === "college-football"
+            ? `/cfb${summary.week ? `?week=${summary.week}` : ''}`
+            : `/nfl${summary.week ? `?week=${summary.week}` : ''}`
+          }
           className="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-200 transition"
         >
           <span className="text-lg leading-none">←</span>
