@@ -205,13 +205,22 @@ function groupGamesByDate(games: any[]): Map<string, any[]> {
   // Format today's date in local time (not UTC) to avoid timezone issues
   const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
 
+  console.log('[Scoreboard] Today string:', todayStr);
+  console.log('[Scoreboard] Date groups before sorting:', Array.from(grouped.keys()));
+
   const sortedEntries = Array.from(grouped.entries()).sort((a, b) => {
     const dateA = a[0];
     const dateB = b[0];
 
     // Today always comes first
-    if (dateA === todayStr && dateB !== todayStr) return -1;
-    if (dateB === todayStr && dateA !== todayStr) return 1;
+    if (dateA === todayStr && dateB !== todayStr) {
+      console.log(`[Scoreboard] ${dateA} is today, comes before ${dateB}`);
+      return -1;
+    }
+    if (dateB === todayStr && dateA !== todayStr) {
+      console.log(`[Scoreboard] ${dateB} is today, comes before ${dateA}`);
+      return 1;
+    }
     if (dateA === todayStr && dateB === todayStr) return 0;
 
     // Create date objects for comparison
@@ -233,6 +242,8 @@ function groupGamesByDate(games: any[]): Map<string, any[]> {
     // One future, one past: future comes first
     return dateAIsPast ? 1 : -1;
   });
+
+  console.log('[Scoreboard] Date groups after sorting:', sortedEntries.map(e => e[0]));
 
   return new Map(sortedEntries);
 }
