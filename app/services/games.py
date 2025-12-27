@@ -489,7 +489,13 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         for event in events:
             if str(event.get("id")) == str(event_id):
                 # Extract week from scoreboard event (this has the absolute week number)
-                scoreboard_week = event.get("week") or event.get("week", {}).get("number")
+                week_data = event.get("week")
+                if isinstance(week_data, dict):
+                    scoreboard_week = week_data.get("number")
+                elif isinstance(week_data, int):
+                    scoreboard_week = week_data
+                else:
+                    scoreboard_week = None
                 print(f"[{sport.upper()} Game Details] Week from scoreboard event: {scoreboard_week}")
 
                 competitions = event.get("competitions") or [{}]
