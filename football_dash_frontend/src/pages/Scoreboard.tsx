@@ -199,7 +199,37 @@ function groupGamesByDate(games: any[]): Map<string, any[]> {
     grouped.set(date, dateGames);
   }
 
-  return grouped;
+  // Sort the date groups: current/future dates first, past dates last
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset to start of day
+  const todayStr = today.toISOString().split("T")[0];
+
+  const sortedMap = new Map(
+    Array.from(grouped.entries()).sort((a, b) => {
+      const dateA = a[0];
+      const dateB = b[0];
+
+      // Current date comes first
+      if (dateA === todayStr) return -1;
+      if (dateB === todayStr) return 1;
+
+      const dateAObj = new Date(dateA + "T00:00:00");
+      const dateBObj = new Date(dateB + "T00:00:00");
+
+      // Both are past or both are future - sort chronologically
+      if ((dateAObj < today && dateBObj < today) || (dateAObj >= today && dateBObj >= today)) {
+        return dateAObj.getTime() - dateBObj.getTime();
+      }
+
+      // One is past, one is future - future comes first
+      if (dateAObj >= today && dateBObj < today) return -1;
+      if (dateAObj < today && dateBObj >= today) return 1;
+
+      return 0;
+    })
+  );
+
+  return sortedMap;
 }
 
 function formatDateHeader(dateStr: string): string {

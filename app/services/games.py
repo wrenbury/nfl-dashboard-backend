@@ -504,8 +504,10 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     # Extract week if available (CFB bowl games use seasonType=3 with specific week numbers)
     week = None
     season = header.get("season")
+    print(f"[{sport.upper()} Game Details] Season data: {season}")
     if season and isinstance(season, dict):
         week = season.get("week")
+        print(f"[{sport.upper()} Game Details] Extracted week: {week}")
 
     summary = GameSummary(
         id=str(header.get("id") or event_id),
@@ -516,6 +518,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         competitors=[_map_competitor(c) for c in raw_competitors],
         week=week,  # Add week for back navigation
     )
+    print(f"[{sport.upper()} Game Details] Final summary week: {summary.week}")
 
     # --- Boxscore: player stats --------------------------------------------------
     boxscore = raw.get("boxscore") or {}
