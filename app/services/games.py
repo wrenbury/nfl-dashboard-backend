@@ -12,8 +12,9 @@ from ..models.schemas import (
     Team,
 )
 from ..clients import espn, cfbd
-from .scoreboard import _map_competitor, _normalize_cfb_status, _convert_utc_timestamp_to_et
+from .scoreboard import _map_competitor, _normalize_cfb_status, _convert_utc_timestamp_to_et, get_cfb_weeks
 from ..utils.cfb_logos import get_cfb_logo
+from datetime import datetime
 
 
 def _get_status_text(comp: Dict[str, Any], header: Dict[str, Any]) -> str:
@@ -513,15 +514,37 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
 
     # --- High-level game summary -------------------------------------------------
     # Extract week if available
-    # IMPORTANT: Prefer scoreboard week over header week because:
-    # - Scoreboard provides absolute week numbers (e.g., 16, 17 for bowl games)
-    # - Header.week provides relative postseason week numbers (e.g., 1, 2 for bowl games)
-    week = scoreboard_week
+    # For CFB, ESPN returns relative postseason week numbers (week 1, 2 of postseason)
+    # but we need absolute week numbers (week 16, 17 for bowl games) to match the scoreboard
+    # So we need to match the game's date to the calendar weeks
+    week = None
+    game_date = comp0.get("date") or header.get("date") or ""
 
-    # Fallback to header.week if scoreboard doesn't have it
+    if sport == "college-football" and game_date:
+        try:
+            # Get all CFB weeks from calendar (has absolute week numbers and date ranges)
+            cfb_weeks = get_cfb_weeks()
+            # Parse game date (format: 2024-12-27T19:00Z)
+            game_datetime = datetime.fromisoformat(game_date.replace('Z', '+00:00'))
+            game_date_str = game_datetime.strftime('%Y-%m-%d')
+
+            print(f"[{sport.upper()} Game Details] Game date: {game_date_str}")
+
+            # Find which week this game falls into based on date range
+            for w in cfb_weeks:
+                if w.startDate and w.endDate:
+                    # Check if game date falls within this week's range
+                    if w.startDate <= game_date_str <= w.endDate:
+                        week = w.number
+                        print(f"[{sport.upper()} Game Details] Matched to week {week} ({w.label}) based on date range {w.startDate} to {w.endDate}")
+                        break
+        except Exception as e:
+            print(f"[{sport.upper()} Game Details] Error matching week by date: {e}")
+
+    # Fallback to scoreboard week or header week if date matching didn't work
     if week is None:
-        week = header.get("week")
-        print(f"[{sport.upper()} Game Details] Using header.week as fallback: {week}")
+        week = scoreboard_week or header.get("week")
+        print(f"[{sport.upper()} Game Details] Using fallback week: {week}")
 
     print(f"[{sport.upper()} Game Details] Final week for back navigation: {week}")
 
