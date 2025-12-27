@@ -54,7 +54,7 @@ function parseClockToSecondsRemaining(clock: string | number | undefined): numbe
   return mm * 60 + ss;
 }
 
-function normalizeWinProb(raw: any): NormalizedPoint[] {
+function normalizeWinProb(raw: any, currentPeriod?: number | null): NormalizedPoint[] {
   if (!Array.isArray(raw) || raw.length === 0) return [];
 
   const out: NormalizedPoint[] = [];
@@ -117,8 +117,14 @@ function normalizeWinProb(raw: any): NormalizedPoint[] {
       }
     }
 
-    // fallback: evenly spaced
-    if (t == null) {
+    // fallback: evenly spaced within current period
+    if (t == null && currentPeriod != null && currentPeriod <= 4) {
+      // For CFB with no period data per play, space plays evenly within elapsed game time
+      // Example: If period=2 (end of 2nd quarter), max progress is 50% (0.5)
+      const maxProgress = currentPeriod / 4.0; // Period 1=25%, 2=50%, 3=75%, 4=100%
+      t = raw.length > 1 ? (index / (raw.length - 1)) * maxProgress : 0;
+    } else if (t == null) {
+      // Final fallback: evenly spaced across full game
       t = raw.length > 1 ? index / (raw.length - 1) : 0;
     }
 
@@ -184,7 +190,7 @@ export default function WinProb({
   gameStatus,
   situation,
 }: Props) {
-  const data = normalizeWinProb(winProbability);
+  const data = normalizeWinProb(winProbability, situation?.period);
 
   if (!data.length) {
     return (
