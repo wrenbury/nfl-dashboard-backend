@@ -247,12 +247,14 @@ export default function Scoreboard({ sport }: Props) {
   const cfbYear = getCurrentCFBYear();
   const [searchParams] = useSearchParams();
 
-  // Check if week is in URL params (for back navigation from game page)
+  // Check if week and seasontype are in URL params (for back navigation from game page)
   const weekFromUrl = searchParams.get('week');
+  const seasonTypeFromUrl = searchParams.get('seasontype');
   const initialWeek = weekFromUrl ? parseInt(weekFromUrl, 10) : (sport === "nfl" ? getCurrentNflWeek() : 1);
+  const initialSeasonType = seasonTypeFromUrl ? parseInt(seasonTypeFromUrl, 10) : 2; // 2=regular, 3=postseason
 
   const [selectedWeek, setSelectedWeek] = useState(initialWeek);
-  const [selectedSeasonType, setSelectedSeasonType] = useState<number>(2); // 2=regular, 3=postseason
+  const [selectedSeasonType, setSelectedSeasonType] = useState<number>(initialSeasonType);
   const [selectedConference, setSelectedConference] = useState<number>(80); // 80 = All FBS games
 
   // Fetch weeks from backend for both NFL and CFB
