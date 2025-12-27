@@ -503,11 +503,32 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     # --- High-level game summary -------------------------------------------------
     # Extract week if available (CFB bowl games use seasonType=3 with specific week numbers)
     week = None
+
+    # DEBUG: Log all available keys to find where week is stored
+    print(f"[{sport.upper()} Game Details] Full header keys: {list(header.keys())}")
+    print(f"[{sport.upper()} Game Details] Full comp0 keys: {list(comp0.keys())}")
+
+    # Check header.season
     season = header.get("season")
     print(f"[{sport.upper()} Game Details] Season data: {season}")
     if season and isinstance(season, dict):
+        print(f"[{sport.upper()} Game Details] Season keys: {list(season.keys())}")
         week = season.get("week")
-        print(f"[{sport.upper()} Game Details] Extracted week: {week}")
+        print(f"[{sport.upper()} Game Details] Week from header.season.week: {week}")
+
+    # Check comp0.week
+    if week is None:
+        comp_week = comp0.get("week")
+        print(f"[{sport.upper()} Game Details] Week from comp0.week: {comp_week}")
+        if comp_week:
+            week = comp_week
+
+    # Check header.week directly
+    if week is None:
+        header_week = header.get("week")
+        print(f"[{sport.upper()} Game Details] Week from header.week: {header_week}")
+        if header_week:
+            week = header_week
 
     summary = GameSummary(
         id=str(header.get("id") or event_id),
