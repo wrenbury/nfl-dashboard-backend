@@ -482,11 +482,16 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     # For live games, also fetch from scoreboard to get real-time situation data
     # The summary endpoint doesn't include live situation updates
     scoreboard_situation = None
+    scoreboard_week = None
     try:
         scoreboard_data = espn.scoreboard(sport)
         events = scoreboard_data.get("events") or []
         for event in events:
             if str(event.get("id")) == str(event_id):
+                # Extract week from scoreboard event (this has the absolute week number)
+                scoreboard_week = event.get("week") or event.get("week", {}).get("number")
+                print(f"[{sport.upper()} Game Details] Week from scoreboard event: {scoreboard_week}")
+
                 competitions = event.get("competitions") or [{}]
                 if competitions:
                     scoreboard_situation = competitions[0].get("situation")
@@ -501,34 +506,18 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     raw_competitors = comp0.get("competitors") or []
 
     # --- High-level game summary -------------------------------------------------
-    # Extract week if available (CFB bowl games use seasonType=3 with specific week numbers)
-    week = None
+    # Extract week if available
+    # IMPORTANT: Prefer scoreboard week over header week because:
+    # - Scoreboard provides absolute week numbers (e.g., 16, 17 for bowl games)
+    # - Header.week provides relative postseason week numbers (e.g., 1, 2 for bowl games)
+    week = scoreboard_week
 
-    # DEBUG: Log all available keys to find where week is stored
-    print(f"[{sport.upper()} Game Details] Full header keys: {list(header.keys())}")
-    print(f"[{sport.upper()} Game Details] Full comp0 keys: {list(comp0.keys())}")
-
-    # Check header.season
-    season = header.get("season")
-    print(f"[{sport.upper()} Game Details] Season data: {season}")
-    if season and isinstance(season, dict):
-        print(f"[{sport.upper()} Game Details] Season keys: {list(season.keys())}")
-        week = season.get("week")
-        print(f"[{sport.upper()} Game Details] Week from header.season.week: {week}")
-
-    # Check comp0.week
+    # Fallback to header.week if scoreboard doesn't have it
     if week is None:
-        comp_week = comp0.get("week")
-        print(f"[{sport.upper()} Game Details] Week from comp0.week: {comp_week}")
-        if comp_week:
-            week = comp_week
+        week = header.get("week")
+        print(f"[{sport.upper()} Game Details] Using header.week as fallback: {week}")
 
-    # Check header.week directly
-    if week is None:
-        header_week = header.get("week")
-        print(f"[{sport.upper()} Game Details] Week from header.week: {header_week}")
-        if header_week:
-            week = header_week
+    print(f"[{sport.upper()} Game Details] Final week for back navigation: {week}")
 
     summary = GameSummary(
         id=str(header.get("id") or event_id),
@@ -539,7 +528,6 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         competitors=[_map_competitor(c) for c in raw_competitors],
         week=week,  # Add week for back navigation
     )
-    print(f"[{sport.upper()} Game Details] Final summary week: {summary.week}")
 
     # --- Boxscore: player stats --------------------------------------------------
     boxscore = raw.get("boxscore") or {}
