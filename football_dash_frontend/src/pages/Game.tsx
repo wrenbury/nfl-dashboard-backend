@@ -284,6 +284,7 @@ export default function Game() {
             {/* Field Display - show during live games (even without full situation data) */}
             {isLive && (
               <FieldDisplay
+                key={`field-${situation?.possessionTeamId}-${situation?.yardLine}-${situation?.period}`}
                 situation={situation}
                 homeTeamId={home?.team?.id || ""}
                 awayTeamId={away?.team?.id || ""}
