@@ -513,11 +513,12 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
     raw_competitors = comp0.get("competitors") or []
 
     # --- High-level game summary -------------------------------------------------
-    # Extract week if available
+    # Extract week and seasonType for back navigation
     # For CFB, ESPN returns relative postseason week numbers (week 1, 2 of postseason)
     # but we need absolute week numbers (week 16, 17 for bowl games) to match the scoreboard
     # So we need to match the game's date to the calendar weeks
     week = None
+    season_type = None
     game_date = comp0.get("date") or header.get("date") or ""
 
     if sport == "college-football" and game_date:
@@ -536,7 +537,8 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
                     # Check if game date falls within this week's range
                     if w.startDate <= game_date_str <= w.endDate:
                         week = w.number
-                        print(f"[{sport.upper()} Game Details] Matched to week {week} ({w.label}) based on date range {w.startDate} to {w.endDate}")
+                        season_type = w.seasonType
+                        print(f"[{sport.upper()} Game Details] Matched to week {week} ({w.label}, seasonType {season_type}) based on date range {w.startDate} to {w.endDate}")
                         break
         except Exception as e:
             print(f"[{sport.upper()} Game Details] Error matching week by date: {e}")
@@ -546,7 +548,13 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         week = scoreboard_week or header.get("week")
         print(f"[{sport.upper()} Game Details] Using fallback week: {week}")
 
-    print(f"[{sport.upper()} Game Details] Final week for back navigation: {week}")
+    # Try to extract season type from header if not found from calendar
+    if season_type is None:
+        header_season = header.get("season")
+        if isinstance(header_season, dict):
+            season_type = header_season.get("type")
+
+    print(f"[{sport.upper()} Game Details] Final week for back navigation: week={week}, seasonType={season_type}")
 
     summary = GameSummary(
         id=str(header.get("id") or event_id),
@@ -556,6 +564,7 @@ def game_details(sport: Sport, event_id: str) -> GameDetails:
         venue=(comp0.get("venue") or {}).get("fullName"),
         competitors=[_map_competitor(c) for c in raw_competitors],
         week=week,  # Add week for back navigation
+        seasonType=season_type,  # Add seasonType for back navigation (needed for postseason)
     )
 
     # --- Boxscore: player stats --------------------------------------------------

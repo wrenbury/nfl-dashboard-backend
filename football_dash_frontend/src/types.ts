@@ -38,6 +38,8 @@ export type GameSummary = {
   status: string;
   venue?: string | null;
   competitors: Competitor[];
+  week?: number | null;
+  seasonType?: number | null;
 };
 
 export type BoxScoreCategory = {
