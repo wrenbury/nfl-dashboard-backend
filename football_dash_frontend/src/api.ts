@@ -4,13 +4,24 @@ const DEV_BACKEND_PORT = "8000";
 
 function getApiBase(): string {
   if (typeof window === "undefined") return "";
+
+  // Use environment variable if provided (for Railway/production)
+  const envApiUrl = import.meta.env.VITE_API_URL;
+  if (envApiUrl) {
+    console.log('[API] Using VITE_API_URL:', envApiUrl);
+    return envApiUrl;
+  }
+
   const { protocol, hostname, port } = window.location;
 
+  // Development mode (Vite dev server on port 5173)
   if (port === "5173") {
+    console.log('[API] Dev mode: using localhost:8000');
     return `${protocol}//${hostname}:${DEV_BACKEND_PORT}`;
   }
 
-  // Same-origin in "prod" on the Pi
+  // Same-origin in production (when frontend and backend are on same domain)
+  console.log('[API] Production mode: using same-origin');
   return "";
 }
 
